@@ -14,7 +14,7 @@
 
 **Salve comandos longos do terminal com nomes curtos, encadeie-os em listas de execução e execute tudo com segurança.**
 
-Português · [English](README.md)
+[Site oficial](https://miqueiasklippel.github.io/lintux/) · Português · [English](README.md)
 
 ![Python](https://img.shields.io/badge/python-3.6%2B-blue)
 ![Dependências](https://img.shields.io/badge/depend%C3%AAncias-nenhuma-brightgreen)
@@ -217,5 +217,5 @@ Para licenciamento comercial, entre em contato com o autor.
 ## Autor
 
 Desenvolvido por **M. A. KLIPPEL**
-Contato: [contato@klippelbit.app](mailto:contato@klippelbit.app)
+Contato: [contato@klippelbit.app.br](mailto:contato@klippelbit.app.br)
 Projeto: <https://github.com/miqueiasklippel/lintux>

@@ -8,7 +8,7 @@ Compatível : Debian, Ubuntu, Linux Mint e derivados; RHEL, Fedora, CentOS,
              AlmaLinux, Rocky Linux e derivados.
 Dados      : ~/.lintux/database.json  (pode ser alterado com a variável LINTUX_HOME)
 
-Autor      : M. A. Klippel <contato@klippelbit.app>
+Autor      : M. A. Klippel <contato@klippelbit.app.br>
 Projeto    : https://github.com/miqueiasklippel/lintux
 Licença    : PolyForm Noncommercial License 1.0.0 (uso não comercial) — veja LICENSE.md
 
@@ -39,7 +39,7 @@ from pathlib import Path
 
 VERSAO = "1.0.0"
 AUTOR = "M. A. KLIPPEL"
-CONTATO = "contato@klippelbit.app"
+CONTATO = "contato@klippelbit.app.br"
 REPOSITORIO = "https://github.com/miqueiasklippel/lintux"
 ESQUEMA = 2  # versão da estrutura do database.json
 

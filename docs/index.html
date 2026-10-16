@@ -1,0 +1,1151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LinTux</title>
+<meta name="description" content="LinTux: salve comandos longos do terminal Linux com nomes curtos, encadeie-os em listas de execução e execute tudo com segurança.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<meta property="og:title" content="LinTux">
+<meta property="og:description" content="Salve comandos longos do terminal Linux com nomes curtos, encadeie-os em listas de execução e execute tudo com segurança.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://miqueiasklippel.github.io/lintux/">
+<meta name="theme-color" content="#0f1216">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1216'/%3E%3Cpath d='M8 11l6 5-6 5' stroke='%2367d0d6' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M16 22h8' stroke='%2367d0d6' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>html{margin:0}body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<style>
+/* Layout: coluna única de 1040px; cabeçalho fino como barra de terminal; cada seção abre com um comentário de shell (# título);
+   a demonstração interativa vem logo após a apresentação. Visual escuro único e deliberado, com as cores ANSI do próprio LinTux. */
+:root{
+  --bg:#0f1216;
+  --panel:#151a20;
+  --panel-2:#1b2129;
+  --line:#272e37;
+  --fg:#d7dde3;
+  --dim:#8a95a1;
+  --cyan:#67d0d6;
+  --green:#93cf8c;
+  --yellow:#e5c36b;
+  --red:#ef8a8a;
+  --on-cyan:#0b1114;
+  --sel:rgba(103,208,214,.22);
+  --mono:"IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", "Liberation Mono", Menlo, monospace;
+  --sans:"IBM Plex Sans", system-ui, Ubuntu, Cantarell, "Segoe UI", sans-serif;
+  --step--1:.875rem; --step-0:1rem; --step-1:1.2rem; --step-2:1.5rem; --step-3:2rem;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  background:var(--bg); color:var(--fg);
+  font:400 var(--step-0)/1.65 var(--sans);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  -webkit-font-smoothing:antialiased;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+::selection{background:var(--sel)}
+a{color:var(--cyan);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:2px}
+code,kbd,pre,.mono{font-family:var(--mono)}
+.wrap{max-width:1040px;margin:0 auto}
+
+/* ---------- cabeçalho ---------- */
+.top{
+  position:sticky; top:env(safe-area-inset-top, 0px); z-index:5;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+  margin-left:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  margin-right:calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.top .wrap{display:flex;align-items:center;gap:1.5rem;min-height:52px}
+.brand{font:500 var(--step--1) var(--mono);color:var(--fg);text-decoration:none;white-space:nowrap}
+.brand b{color:var(--cyan);font-weight:500}
+.nav{display:flex;gap:1.25rem;margin-left:auto;overflow-x:auto;scrollbar-width:none;min-width:0}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font:400 var(--step--1) var(--mono);color:var(--dim);text-decoration:none;white-space:nowrap;padding-block:.25rem}
+.nav a:hover{color:var(--fg)}
+.nav a.gh{color:var(--cyan)}
+
+/* ---------- apresentação ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:2rem;align-items:center;padding-block:4.5rem 3.5rem}
+.meta{font:400 var(--step--1) var(--mono);color:var(--dim);display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin:0 0 1.25rem}
+.meta span::before{content:"· ";color:var(--line)}
+.meta span:first-child::before{content:""}
+h1{font:600 clamp(3.2rem, 9vw, 5.6rem)/1 var(--mono);letter-spacing:-.04em;margin:0 0 1.25rem;display:flex;align-items:flex-end;gap:.08em}
+h1 .cur{display:inline-block;width:.5em;height:.82em;background:var(--cyan);margin-bottom:.06em;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.tagline{font:500 var(--step-2)/1.3 var(--sans);margin:0 0 .75rem;text-wrap:balance;max-width:28ch}
+.lede{color:var(--dim);margin:0 0 2rem;max-width:56ch}
+.actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.75rem}
+.btn{display:inline-flex;align-items:center;gap:.5rem;font:500 var(--step--1) var(--mono);padding:.7rem 1.1rem;border-radius:4px;text-decoration:none;border:1px solid var(--cyan);cursor:pointer}
+.btn.primary{background:var(--cyan);color:var(--on-cyan)}
+.btn.primary:hover{background:color-mix(in srgb, var(--cyan) 85%, white)}
+.btn.ghost{color:var(--cyan);background:transparent}
+.btn.ghost:hover{background:var(--sel)}
+.oneliner{display:flex;align-items:center;gap:.75rem;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:.55rem .6rem .55rem .9rem;max-width:100%}
+.oneliner code{font-size:var(--step--1);overflow-x:auto;white-space:nowrap;min-width:0;flex:1;scrollbar-width:thin}
+.oneliner code::before{content:"$ ";color:var(--dim)}
+.tux{margin:0;justify-self:center;font:500 clamp(15px, 2.3vw, 24px)/1.25 var(--mono);color:var(--cyan);white-space:pre;user-select:none}
+.tux .belly{color:var(--fg)}
+
+/* ---------- seções ---------- */
+section{padding-block:3.5rem;border-top:1px solid var(--line)}
+.sh{font:600 var(--step-3)/1.15 var(--mono);letter-spacing:-.02em;margin:0 0 .6rem;text-wrap:balance}
+.sh::before{content:"# ";color:var(--cyan)}
+.intro{color:var(--dim);margin:0 0 2rem;max-width:62ch}
+
+/* ---------- terminal de demonstração ---------- */
+.term{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden;min-width:0}
+.term-bar{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem .5rem 1rem;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.term-title{font:400 var(--step--1) var(--mono);color:var(--dim);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font:500 .72rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--yellow);border:1px solid color-mix(in srgb, var(--yellow) 45%, transparent);border-radius:3px;padding:.1rem .4rem;white-space:nowrap}
+.mini{font:400 .8rem var(--mono);color:var(--dim);background:none;border:1px solid var(--line);border-radius:3px;padding:.2rem .55rem;cursor:pointer}
+.mini:hover{color:var(--fg);border-color:var(--dim)}
+.term-body{height:min(460px, 62vh);overflow-y:auto;padding:1rem 1.1rem 1.25rem;font:400 .9rem/1.55 var(--mono);cursor:text;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.ln{white-space:pre-wrap;word-break:break-word;min-height:1.55em}
+.ln.ok{color:var(--green)} .ln.err{color:var(--red)} .ln.warn{color:var(--yellow)}
+.ln.cy{color:var(--cyan)} .ln.dim{color:var(--dim)} .ln.b{font-weight:600}
+.ps{color:var(--green)} .ps i{font-style:normal;color:var(--cyan)}
+.live{display:flex;gap:.6ch;align-items:baseline}
+.live input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--fg);font:inherit;font-size:max(16px,.9rem);caret-color:var(--cyan);padding:0}
+.live input:focus-visible{outline:0}
+.term-body:focus-within{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--cyan) 35%, transparent)}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:1rem}
+.chips span{font:400 var(--step--1) var(--mono);color:var(--dim);margin-right:.25rem}
+.chip{font:400 .82rem var(--mono);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.35rem .8rem;cursor:pointer;text-align:left;max-width:100%;overflow-wrap:anywhere}
+.chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.chip:disabled{opacity:.5;cursor:default}
+.note{font-size:var(--step--1);color:var(--dim);margin:.9rem 0 0}
+
+/* ---------- recursos ---------- */
+.feats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2.25rem 2rem}
+.feat{border-top:1px solid var(--line);padding-top:1rem;min-width:0}
+.feat h3{font:600 var(--step-0) var(--mono);margin:0 0 .4rem;color:var(--fg)}
+.feat p{margin:0 0 .75rem;color:var(--dim);font-size:.95rem}
+.feat code{display:block;font-size:.8rem;color:var(--cyan);white-space:pre-wrap;word-break:break-word}
+
+/* ---------- instalação ---------- */
+.tabs{display:flex;gap:.25rem;border-bottom:1px solid var(--line);margin-bottom:1.75rem;overflow-x:auto;scrollbar-width:none}
+.tab{font:500 var(--step--1) var(--mono);color:var(--dim);background:none;border:0;border-bottom:2px solid transparent;padding:.6rem .9rem;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--cyan)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:1.75rem;counter-reset:s}
+.steps>li{display:grid;grid-template-columns:2.25rem minmax(0,1fr);gap:.25rem 1rem;counter-increment:s}
+.steps>li::before{content:counter(s);font:600 var(--step-0) var(--mono);color:var(--on-cyan);background:var(--cyan);width:1.75rem;height:1.75rem;border-radius:50%;display:grid;place-items:center;grid-row:span 3}
+.steps h3{font:600 var(--step-1) var(--sans);margin:0;line-height:1.75rem}
+.steps p{margin:0;color:var(--dim);max-width:62ch}
+.code{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:4px;margin-top:.5rem;min-width:0}
+.code pre{margin:0;padding:.85rem 5.5rem .85rem 1rem;overflow-x:auto;font-size:.88rem;line-height:1.6}
+.code .cl{display:block}
+.code .cl::before{content:"$ ";color:var(--dim);user-select:none}
+.code .cm{display:block;color:var(--dim)}
+.copy{position:absolute;top:.5rem;right:.5rem;font:400 .75rem var(--mono);color:var(--dim);background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:.25rem .55rem;cursor:pointer}
+.copy:hover{color:var(--fg);border-color:var(--dim)}
+.copy.done{color:var(--green);border-color:color-mix(in srgb, var(--green) 50%, transparent)}
+.oneliner .copy{position:static}
+.alt{margin-top:2.25rem;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2rem}
+.alt h3{font:600 var(--step-0) var(--mono);margin:0 0 .35rem}
+.alt p{margin:0;color:var(--dim);font-size:.95rem}
+
+/* ---------- referência ---------- */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th,td{text-align:left;padding:.55rem 1rem;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+td:first-child{font-family:var(--mono);font-size:.84rem;color:var(--cyan);white-space:nowrap}
+td:last-child{color:var(--fg)}
+th{font:500 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--panel)}
+tr.grp td{font:500 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--panel-2);padding-block:.4rem}
+.quote{margin-top:2.5rem;border:1px solid color-mix(in srgb, var(--yellow) 40%, transparent);border-radius:4px;padding:1.25rem 1.25rem 1.1rem;background:color-mix(in srgb, var(--yellow) 5%, var(--bg))}
+.quote h3{font:600 var(--step-0) var(--mono);color:var(--yellow);margin:0 0 .5rem}
+.quote p{margin:0 0 .9rem;color:var(--dim);max-width:70ch}
+.quote pre{margin:0 0 .9rem;font-size:.86rem;line-height:1.7;overflow-x:auto}
+.quote .y{color:var(--green)} .quote .n{color:var(--red)}
+
+/* ---------- licença e rodapé ---------- */
+.lic{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1.5rem 3rem;align-items:start}
+.lic p{margin:0 0 .75rem;color:var(--dim);max-width:64ch}
+.lic p strong{color:var(--fg);font-weight:500}
+.lic ul{margin:0;padding:0;list-style:none;font:400 var(--step--1) var(--mono);display:grid;gap:.4rem}
+.lic li.y::before{content:"✔ ";color:var(--green)}
+.lic li.n::before{content:"✖ ";color:var(--red)}
+footer{border-top:1px solid var(--line);padding-block:2rem 2.5rem;font:400 var(--step--1) var(--mono);color:var(--dim)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center}
+footer .who{color:var(--fg)}
+footer .mail{display:inline-flex;align-items:center;gap:.5rem}
+footer .mail span{user-select:all;color:var(--fg)}
+footer .copy{position:static}
+footer .right{margin-left:auto}
+
+/* ---------- telas estreitas ---------- */
+@media (max-width:860px){
+  .feats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:720px){
+  .hero{grid-template-columns:minmax(0,1fr);padding-block:2.5rem 2.5rem}
+  .tux{grid-row:1;justify-self:start;font-size:15px}
+  .feats,.alt{grid-template-columns:minmax(0,1fr)}
+  .lic{grid-template-columns:minmax(0,1fr)}
+  .brand .full{display:none}
+  footer .right{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){h1 .cur{animation:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio">tux@linux:<b>~/lintux</b><span class="full">$</span></a>
+    <nav class="nav" aria-label="Seções">
+      <a href="#demo">demo</a>
+      <a href="#recursos">recursos</a>
+      <a href="#instalar">instalar</a>
+      <a href="#comandos">comandos</a>
+      <a class="gh" href="https://github.com/miqueiasklippel/lintux" target="_blank" rel="noopener">github ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="inicio">
+  <div class="hero">
+    <div>
+      <p class="meta"><span>v1.0.0</span><span>Python 3.6+</span><span>sem dependências</span><span>Debian · Fedora</span></p>
+      <h1>LinTux<span class="cur" aria-hidden="true"></span></h1>
+      <p class="tagline">Seus comandos do terminal, com nome curto.</p>
+      <p class="lede">Salve comandos longos uma única vez, encadeie-os em listas de execução e rode tudo com <code>lintux&nbsp;&lt;nome&gt;</code>. O LinTux mostra o que vai executar, pede confirmação antes de operações perigosas e guarda backup dos seus dados.</p>
+      <div class="actions">
+        <a class="btn primary" href="#instalar">Instalar</a>
+        <a class="btn ghost" href="https://github.com/miqueiasklippel/lintux" target="_blank" rel="noopener">Repositório no GitHub ↗</a>
+      </div>
+      <div class="oneliner">
+        <code id="quick">git clone https://github.com/miqueiasklippel/lintux.git &amp;&amp; cd lintux &amp;&amp; ./install.sh</code>
+        <button class="copy" type="button" data-copy-from="quick">copiar</button>
+      </div>
+    </div>
+    <pre class="tux" aria-label="Pinguim Tux, mascote do LinTux">       .--.
+      |<span id="eyes">o_o</span> |
+      |:_/ |
+     //   \ \
+    (|     | )
+   /'\_   _/`\
+   \___)=(___/</pre>
+  </div>
+
+  <section id="demo" aria-labelledby="demo-t">
+    <h2 class="sh" id="demo-t">experimente</h2>
+    <p class="intro">Um terminal simulado, que responde como o LinTux. Digite um comando ou toque nos exemplos abaixo. Nada é executado no seu computador.</p>
+    <div class="term">
+      <div class="term-bar">
+        <span class="term-title">tux@linux: ~ — bash</span>
+        <span class="tag">simulação</span>
+        <button class="mini" type="button" id="reset">reiniciar</button>
+      </div>
+      <div class="term-body" id="tbody" role="log" aria-label="Saída do terminal de demonstração">
+        <div id="out"></div>
+        <label class="live" for="cmd"><span class="ps">tux@linux:<i>~</i>$</span><input id="cmd" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Digite um comando"></label>
+      </div>
+    </div>
+    <div class="chips" id="chips"><span>Experimente:</span></div>
+    <p class="note">Dicas: <kbd>Tab</kbd> completa nomes, <kbd>↑</kbd> e <kbd>↓</kbd> navegam no histórico, e <code>clear</code> limpa a tela.</p>
+  </section>
+
+  <section id="recursos" aria-labelledby="rec-t">
+    <h2 class="sh" id="rec-t">o que ele faz</h2>
+    <p class="intro">Um único arquivo Python, que usa só a biblioteca padrão. Útil para quem está começando no Linux e para quem quer trocar aliases espalhados por algo organizado.</p>
+    <div class="feats">
+      <div class="feat">
+        <h3>Comandos salvos</h3>
+        <p>Guarde qualquer comando, com pipes, redirecionamentos e <code style="display:inline;color:inherit">&amp;&amp;</code>, sob um nome curto.</p>
+        <code>lintux add atualizar 'sudo apt update &amp;&amp; sudo apt upgrade -y'
+lintux atualizar</code>
+      </div>
+      <div class="feat">
+        <h3>Listas de execução</h3>
+        <p>Etapas em ordem, com progresso. A lista para na primeira falha e diz onde foi.</p>
+        <code>[1/3] Executando: atualizar...
+✔ Etapa 1/3 concluída (2,4 s).</code>
+      </div>
+      <div class="feat">
+        <h3>Parâmetros</h3>
+        <p>Transforme um comando em modelo. Os argumentos são sempre escapados antes de ir ao shell.</p>
+        <code>lintux add porta 'ss -tulpn | grep {{1}}'
+lintux porta 8080</code>
+      </div>
+      <div class="feat">
+        <h3>Veja antes de executar</h3>
+        <p>Inspecione o código guardado ou simule a execução completa de uma lista.</p>
+        <code>lintux show manutencao
+lintux -n manutencao</code>
+      </div>
+      <div class="feat">
+        <h3>Rede de proteção</h3>
+        <p>Pede confirmação antes de <code style="display:inline;color:inherit">rm -rf /</code>, <code style="display:inline;color:inherit">mkfs</code>, <code style="display:inline;color:inherit">dd</code>, <code style="display:inline;color:inherit">curl | sh</code> e desligamentos.</p>
+        <code>⚠ Atenção: operação potencialmente
+  destrutiva detectada</code>
+      </div>
+      <div class="feat">
+        <h3>Backup e histórico</h3>
+        <p>Backup com um comando na pasta Downloads, restauração por mesclagem e registro de cada execução.</p>
+        <code>lintux new backup
+lintux history</code>
+      </div>
+    </div>
+  </section>
+
+  <section id="instalar" aria-labelledby="ins-t">
+    <h2 class="sh" id="ins-t">instalação</h2>
+    <p class="intro">Funciona em Debian, Ubuntu, Linux Mint, RHEL, Fedora, CentOS, AlmaLinux, Rocky Linux e derivados. Escolha a sua família de distribuições.</p>
+
+    <div class="tabs" role="tablist" aria-label="Família de distribuições">
+      <button class="tab" role="tab" id="tab-deb" aria-controls="p-deb" aria-selected="true" type="button">Debian · Ubuntu · Mint</button>
+      <button class="tab" role="tab" id="tab-rh" aria-controls="p-rh" aria-selected="false" type="button" tabindex="-1">Fedora · RHEL · Alma · Rocky</button>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <h3>Instale os requisitos</h3>
+        <p>O Python 3 já vem na maioria das distribuições desktop. O comando abaixo garante o Python e o Git.</p>
+        <div class="code" id="p-deb" role="tabpanel" aria-labelledby="tab-deb"><pre><code><span class="cl">sudo apt install python3 git</span></code></pre><button class="copy" type="button">copiar</button></div>
+        <div class="code" id="p-rh" role="tabpanel" aria-labelledby="tab-rh" hidden><pre><code><span class="cl">sudo dnf install python3 git</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </li>
+      <li>
+        <h3>Baixe o projeto</h3>
+        <p>Clone o repositório oficial e entre na pasta.</p>
+        <div class="code"><pre><code><span class="cl">git clone https://github.com/miqueiasklippel/lintux.git</span><span class="cl">cd lintux</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </li>
+      <li>
+        <h3>Execute o instalador</h3>
+        <p>Instala para todo o sistema em <code>/usr/local/bin</code> e pede a senha do <code>sudo</code>. Para instalar só para o seu usuário, sem <code>sudo</code>, use <code>./install.sh --user</code>.</p>
+        <div class="code"><pre><code><span class="cl">./install.sh</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </li>
+      <li>
+        <h3>Teste</h3>
+        <p>Abra um novo terminal, para ativar o autocompletar com a tecla Tab, e salve o seu primeiro comando.</p>
+        <div class="code"><pre><code><span class="cl">lintux add ola 'echo "Olá, $USER!"'</span><span class="cl">lintux ola</span><span class="cl">lintux help</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </li>
+    </ol>
+
+    <div class="alt">
+      <div>
+        <h3>Sem Git?</h3>
+        <p>Baixe o <a href="https://github.com/miqueiasklippel/lintux/archive/refs/heads/main.zip" target="_blank" rel="noopener">arquivo ZIP do projeto ↗</a> e, na pasta onde ele foi salvo:</p>
+        <div class="code"><pre><code><span class="cl">unzip lintux-main.zip &amp;&amp; cd lintux-main</span><span class="cl">bash install.sh</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </div>
+      <div>
+        <h3>Atualizar ou remover</h3>
+        <p>Rodar o instalador de novo atualiza a versão sem tocar nos seus dados. Para remover, use o desinstalador, que pergunta se deve apagar <code>~/.lintux</code>.</p>
+        <div class="code"><pre><code><span class="cl">./uninstall.sh</span><span class="cm"># --keep mantém os dados; --purge apaga após um backup final</span></code></pre><button class="copy" type="button">copiar</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="comandos" aria-labelledby="cmd-t">
+    <h2 class="sh" id="cmd-t">referência rápida</h2>
+    <p class="intro">Os comandos mais usados. O guia completo aparece com <code>lintux help</code>.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col">Comando</th><th scope="col">O que faz</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="2">Executar</td></tr>
+          <tr><td>lintux &lt;nome&gt; [args]</td><td>Executa um comando ou uma lista</td></tr>
+          <tr><td>lintux -n &lt;nome&gt;</td><td>Simula: mostra o que seria executado, sem executar</td></tr>
+          <tr><td>lintux -k &lt;lista&gt;</td><td>Continua as próximas etapas mesmo se uma falhar</td></tr>
+          <tr><td>lintux -y &lt;nome&gt;</td><td>Dispensa a confirmação de operações perigosas</td></tr>
+          <tr class="grp"><td colspan="2">Comandos</td></tr>
+          <tr><td>lintux add &lt;nome&gt; '&lt;comando&gt;'</td><td>Salva um novo comando</td></tr>
+          <tr><td>lintux edit &lt;nome&gt; ['&lt;novo&gt;']</td><td>Altera o código (sem texto, abre o editor)</td></tr>
+          <tr><td>lintux rm &lt;nome&gt;</td><td>Remove o comando e o retira das listas</td></tr>
+          <tr><td>lintux show &lt;nome&gt;</td><td>Mostra o código sem executar</td></tr>
+          <tr class="grp"><td colspan="2">Listas</td></tr>
+          <tr><td>lintux add list &lt;lista&gt;</td><td>Cria uma lista vazia</td></tr>
+          <tr><td>lintux add list &lt;lista&gt; &lt;comando&gt;</td><td>Adiciona um comando já salvo como etapa</td></tr>
+          <tr><td>lintux add list &lt;lista&gt; &lt;novo&gt; '&lt;código&gt;'</td><td>Salva um novo comando e já o adiciona à lista</td></tr>
+          <tr><td>lintux mv &lt;lista&gt; &lt;de&gt; &lt;para&gt;</td><td>Move uma etapa de posição</td></tr>
+          <tr><td>lintux rm list &lt;lista&gt; [etapa]</td><td>Remove a lista ou uma etapa; os comandos continuam salvos</td></tr>
+          <tr class="grp"><td colspan="2">Organizar</td></tr>
+          <tr><td>lintux list [cmd | lists]</td><td>Mostra comandos e listas</td></tr>
+          <tr><td>lintux search &lt;termo&gt;</td><td>Procura em nomes, códigos e descrições</td></tr>
+          <tr><td>lintux rename &lt;atual&gt; &lt;novo&gt;</td><td>Renomeia e atualiza as listas que o usam</td></tr>
+          <tr><td>lintux history</td><td>Mostra as últimas execuções</td></tr>
+          <tr class="grp"><td colspan="2">Backup</td></tr>
+          <tr><td>lintux new backup [pasta]</td><td>Cria um backup (padrão: pasta Downloads)</td></tr>
+          <tr><td>lintux add backup &lt;arquivo&gt;</td><td>Restaura e mescla um backup aos dados atuais</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote">
+      <h3>⚠ Use aspas simples ao salvar comandos</h3>
+      <p>Operadores como <code>&amp;&amp;</code>, <code>|</code>, <code>&gt;</code> e <code>;</code> são lidos pelo seu shell antes de chegarem ao LinTux. Sem aspas, só a primeira parte é salva e o resto é executado na hora.</p>
+<pre><span class="y">✔ lintux add atualizar 'sudo apt update &amp;&amp; sudo apt upgrade -y'</span>
+<span class="n">✖ lintux add atualizar sudo apt update &amp;&amp; sudo apt upgrade -y</span></pre>
+      <p>Se o comando já tiver aspas simples por dentro, use aspas duplas por fora: <code>"echo 'olá'"</code>. Na demonstração acima você pode testar os dois jeitos.</p>
+    </div>
+  </section>
+
+  <section id="licenca" aria-labelledby="lic-t">
+    <h2 class="sh" id="lic-t">licença</h2>
+    <div class="lic">
+      <div>
+        <p>O LinTux é distribuído sob a <a href="https://github.com/miqueiasklippel/lintux/blob/main/LICENSE.md" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0 ↗</a>. O código-fonte é público e pode ser lido, modificado e compartilhado para qualquer finalidade <strong>não comercial</strong>.</p>
+        <p>Por restringir o uso comercial, a licença é de código disponível (<em>source-available</em>), e não de código aberto no sentido da Open Source Initiative. Para uso comercial, fale com o autor.</p>
+      </div>
+      <ul>
+        <li class="y">uso pessoal e estudo</li>
+        <li class="y">pesquisa e projetos de hobby</li>
+        <li class="y">instituições de ensino e públicas</li>
+        <li class="y">modificar e redistribuir</li>
+        <li class="n">uso comercial sem autorização</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="who">Desenvolvido por M.A. Klippel | 2026</span>
+    <span class="mail"><span id="mail">contato@klippelbit.app.br</span><button class="copy" type="button" data-copy-from="mail">copiar</button></span>
+    <a class="right" href="https://github.com/miqueiasklippel/lintux" target="_blank" rel="noopener">github.com/miqueiasklippel/lintux ↗</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  /* ===================== cópia ===================== */
+  function flash(btn, txt, ok) {
+    const old = btn.dataset.label || btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = txt;
+    btn.classList.toggle("done", !!ok);
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = old; btn.classList.remove("done"); }, 1600);
+  }
+  function selectEl(el) {
+    const r = document.createRange(); r.selectNodeContents(el);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  function copyText(text, btn, el) {
+    try {
+      navigator.clipboard.writeText(text).then(
+        () => flash(btn, "copiado", true),
+        () => { selectEl(el); flash(btn, "selecionado"); }
+      );
+    } catch (e) { selectEl(el); flash(btn, "selecionado"); }
+  }
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".copy");
+    if (!btn) return;
+    if (btn.dataset.copyFrom) {
+      const el = document.getElementById(btn.dataset.copyFrom);
+      copyText(el.textContent.trim(), btn, el);
+      return;
+    }
+    const box = btn.closest(".code");
+    const code = $("code", box);
+    const lines = [...code.querySelectorAll(".cl")].map(n => n.textContent);
+    copyText(lines.join("\n"), btn, code);
+  });
+
+  /* ===================== abas de instalação ===================== */
+  const tabs = [$("#tab-deb"), $("#tab-rh")];
+  function pickTab(t, focus) {
+    tabs.forEach(x => {
+      const on = x === t;
+      x.setAttribute("aria-selected", on);
+      x.tabIndex = on ? 0 : -1;
+      document.getElementById(x.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (focus) t.focus();
+    try { localStorage.setItem("lintux-tab", t.id); } catch (e) {}
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => pickTab(t));
+    t.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); pickTab(tabs[(i + 1) % 2], true); }
+    });
+  });
+  try { const saved = localStorage.getItem("lintux-tab"); if (saved && document.getElementById(saved)) pickTab(document.getElementById(saved)); } catch (e) {}
+
+  /* ===================== pinguim piscando ===================== */
+  const eyes = $("#eyes");
+  if (!reduce) setInterval(() => { eyes.textContent = "-_-"; setTimeout(() => eyes.textContent = "o_o", 160); }, 4200);
+
+  /* ===================== terminal de demonstração ===================== */
+  const out = $("#out"), body = $("#tbody"), input = $("#cmd");
+  const RESERVED = new Set(["add","rm","list","new","edit","show","help","rename","desc","search","history","mv","run","version","backup"]);
+  const SUB = ["add","edit","rm","list","show","mv","rename","desc","search","history","new","help","version"];
+  const NAME_RE = /^\w[\w.-]{0,63}$/;
+  const PARAM_SRC = "\\{\\{\\s*(\\d+|@)\\s*(?::([^}]*))?\\}\\}";
+  let db, history = [], runs = [], hIdx = 0, busy = false, instant = false;
+
+  function freshDb() {
+    return {
+      commands: {
+        atualizar: { cmd: "sudo apt update && sudo apt upgrade -y", desc: "", t: "2026-10-16 09:12:40" },
+        limpar:    { cmd: "sudo apt autoremove -y && sudo apt clean", desc: "", t: "2026-10-16 09:13:05" },
+        disco:     { cmd: "df -h {{1:/}}", desc: "Espaço livre em disco", t: "2026-10-16 09:15:22" }
+      },
+      lists: { manutencao: { steps: ["atualizar", "limpar"], desc: "Rotina semanal", t: "2026-10-16 09:14:10" } }
+    };
+  }
+
+  function scroll() { body.scrollTop = body.scrollHeight; }
+  async function say(text = "", cls = "", wait = 28) {
+    const d = document.createElement("div");
+    d.className = "ln" + (cls ? " " + cls : "");
+    d.textContent = text;
+    out.appendChild(d);
+    scroll();
+    if (!instant && !reduce && wait) await sleep(wait);
+  }
+  function echoPrompt(cmd) {
+    const d = document.createElement("div");
+    d.className = "ln";
+    const p = document.createElement("span");
+    p.className = "ps"; p.innerHTML = "tux@linux:<i>~</i>$";
+    d.append(p, document.createTextNode(" " + cmd));
+    out.appendChild(d);
+    scroll();
+  }
+  async function err(msg, tip) {
+    await say("✖ Erro: " + msg, "err");
+    if (tip) await say("  Dica: " + tip, "dim");
+  }
+  const pause = ms => (!instant && !reduce) ? sleep(ms) : Promise.resolve();
+  const fmt = s => s.toFixed(1).replace(".", ",") + " s";
+  const now = () => {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return { full: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+             file: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}` };
+  };
+  const sortNames = o => Object.keys(o).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  /* ---------- análise da linha, como o bash faria ---------- */
+  function splitTop(line, pipes) {
+    const segs = []; let cur = "", q = null;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (q) { cur += ch; if (ch === q) q = null; continue; }
+      if (ch === "'" || ch === '"') { q = ch; cur += ch; continue; }
+      const two = line.slice(i, i + 2);
+      if (two === "&&" || two === "||") { segs.push({ s: cur, op: two }); cur = ""; i++; continue; }
+      if (ch === ";" || (pipes && ch === "|")) { segs.push({ s: cur, op: ch }); cur = ""; continue; }
+      cur += ch;
+    }
+    segs.push({ s: cur, op: null });
+    return { segs, open: q };
+  }
+  function words(s) {
+    const outW = []; let cur = "", q = null, quoted = false;
+    for (const ch of s) {
+      if (q) { if (ch === q) q = null; else cur += ch; continue; }
+      if (ch === "'" || ch === '"') { q = ch; quoted = true; continue; }
+      if (/\s/.test(ch)) { if (cur || quoted) { outW.push(cur); cur = ""; quoted = false; } continue; }
+      cur += ch;
+    }
+    if (cur || quoted) outW.push(cur);
+    return outW;
+  }
+  const shq = s => /^[\w@%+=:,./-]+$/.test(s) ? s : "'" + s.replace(/'/g, "'\\''") + "'";
+
+  /* ---------- regras do LinTux ---------- */
+  function params(code) {
+    const seen = new Set(), res = [], re = new RegExp(PARAM_SRC, "g"); let m;
+    while ((m = re.exec(code))) {
+      const key = m[1] + "|" + m[2];
+      if (seen.has(key)) continue; seen.add(key);
+      if (m[1] === "@") res.push("{{@}} todos os argumentos");
+      else if (m[2] !== undefined) res.push(`{{${m[1]}}} opcional (padrão: '${m[2]}')`);
+      else res.push(`{{${m[1]}}} obrigatório`);
+    }
+    return res;
+  }
+  function resolve(code, args, append = true) {
+    if (!new RegExp(PARAM_SRC).test(code)) return { code: args.length && append ? code + " " + args.map(shq).join(" ") : code };
+    const missing = [];
+    const res = code.replace(new RegExp(PARAM_SRC, "g"), (m, k, d) => {
+      if (k === "@") return args.length ? args.map(shq).join(" ") : (d ? shq(d) : "");
+      const n = +k;
+      if (n >= 1 && n <= args.length) return shq(args[n - 1]);
+      if (d !== undefined) return d ? shq(d) : "";
+      missing.push(n); return "";
+    });
+    if (missing.length) return { missing: [...new Set(missing)].sort((a, b) => a - b) };
+    return { code: res };
+  }
+  const RISKS = [
+    [/\brm\s+(?:-\S+\s+)*(?:\/|\/\*|~\/?|\$HOME\/?|"\$HOME"\/?)(?=\s|;|&|\||$)/, "remoção da raiz (/) ou da pasta pessoal inteira"],
+    [/\bmkfs(?:\.\w+)?\b/, "formatação de partição (mkfs)"],
+    [/\bdd\b.*\bof=\/dev\/(?!null\b|zero\b|stdout\b|stderr\b)/, "gravação direta em dispositivo (dd of=/dev/...)"],
+    [/:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, "fork bomb (trava o sistema)"],
+    [/\bch(?:mod|own|grp)\s+(?:-\S*R\S*\s+|--recursive\s+)(?:\S+\s+)*?\/(?=\s|;|&|$)/, "alteração recursiva de permissões ou dono na raiz (/)"],
+    [/\b(?:curl|wget)\b[^|;&\n]*\|\s*(?:sudo\s+)?(?:ba|z|da)?sh\b/, "execução direta de script baixado da internet (curl/wget | sh)"],
+    [/\b(?:shutdown|poweroff|reboot|halt)\b/, "desligamento ou reinicialização do sistema"],
+    [/\b(?:wipefs|shred)\b/, "apagamento irreversível de dados (wipefs/shred)"]
+  ];
+  const risks = code => RISKS.filter(([re]) => re.test(code)).map(([, d]) => d);
+
+  function lev(a, b) {
+    const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+    for (let j = 1; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+      d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+    return d[m][n];
+  }
+  function suggest(name) {
+    return [...Object.keys(db.commands), ...Object.keys(db.lists)]
+      .map(n => [n, 1 - lev(name, n) / Math.max(name.length, n.length)])
+      .filter(([, r]) => r >= 0.6).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
+  }
+  async function notFound(name, what = "comando ou lista") {
+    const s = suggest(name);
+    await err(`${what} '${name}' não encontrad${what === "lista" ? "a" : "o"}.`,
+      s.length ? `Você quis dizer: ${s.join(", ")}?` : "Use 'lintux list' para ver tudo o que está salvo.");
+  }
+  function validate(n) {
+    if (!NAME_RE.test(n)) return [`o nome '${n}' é inválido.`, "Use letras, números, '_', '-' ou '.', começando por letra ou número (máximo de 64 caracteres, sem espaços)."];
+    if (RESERVED.has(n.toLowerCase())) return [`'${n}' é uma palavra reservada do Lintux e não pode ser usada como nome.`, "Palavras reservadas: " + [...RESERVED].sort().join(", ")];
+    if (db.commands[n]) return [`já existe um comando chamado '${n}'.`, `Para alterá-lo use: lintux edit ${n} '<novo comando>'`];
+    if (db.lists[n]) return [`já existe uma lista chamada '${n}'.`, "Comandos e listas compartilham os mesmos nomes; escolha outro."];
+    return null;
+  }
+  const usedIn = n => sortNames(db.lists).filter(l => db.lists[l].steps.includes(n));
+  async function afterSave(code, unquoted) {
+    for (const r of risks(code)) await say(`⚠ Atenção: este comando envolve ${r}. O Lintux pedirá confirmação antes de executá-lo.`, "warn");
+    const p = params(code);
+    if (p.length) await say("  Parâmetros: " + p.join("; "), "dim");
+    if (unquoted) await say("  Dica: na próxima vez, envolva o comando em aspas simples '...' para preservar espaços, aspas internas e operadores como && | > ;", "dim");
+  }
+
+  /* ---------- saídas simuladas dos programas ---------- */
+  function fake(seg) {
+    let s = seg.trim(), lines = [], t = 0.1 + Math.random() * 0.4, code = 0, sudo = false;
+    if (/^sudo\s/.test(s)) { sudo = true; s = s.replace(/^sudo\s+/, ""); }
+    let m;
+    const home = "/home/tux";
+    const expand = x => x.replace(/\$\{?USER\}?/g, "tux").replace(/\$\{?HOME\}?/g, home).replace(/\$\{?PWD\}?/g, home);
+    if (!s) return { lines, t: 0, code, sudo };
+    if ((m = s.match(/^echo(?:\s+(.*))?$/))) { lines = [expand(words(m[1] || "").join(" "))]; t = 0.01; }
+    else if (/^apt(-get)?\s+update\b/.test(s)) { t = 1.6 + Math.random(); lines = ["Atingido:1 http://archive.ubuntu.com/ubuntu noble InRelease", "Obter:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]", "Baixados 126 kB em 1s (198 kB/s)", "Lendo listas de pacotes... Pronto", "Todos os pacotes estão atualizados."]; }
+    else if (/^apt(-get)?\s+(full-|dist-)?upgrade\b/.test(s)) { t = 0.9 + Math.random(); lines = ["Lendo listas de pacotes... Pronto", "Construindo árvore de dependências... Pronto", "Calculando atualização... Pronto", "0 pacotes atualizados, 0 pacotes novos instalados, 0 a serem removidos e 0 não atualizados."]; }
+    else if (/^apt(-get)?\s+autoremove\b/.test(s)) { t = 0.6; lines = ["Lendo listas de pacotes... Pronto", "0 pacotes atualizados, 0 pacotes novos instalados, 0 a serem removidos e 0 não atualizados."]; }
+    else if (/^apt(-get)?\s+clean\b/.test(s)) { t = 0.1; }
+    else if (/^apt(-get)?\s+install\b/.test(s)) { t = 1.2; lines = ["Lendo listas de pacotes... Pronto", "Construindo árvore de dependências... Pronto", "(demonstração) Os pacotes já estão na versão mais recente."]; }
+    else if (/^dnf\s+(upgrade|update)\b/.test(s)) { t = 2.1 + Math.random(); lines = ["Última verificação de expiração de metadados: 0:12:41 atrás em qui 16 out 2026.", "Dependências resolvidas.", "Nada para fazer.", "Concluído!"]; }
+    else if ((m = s.match(/^df\s+-h(?:\s+(\S+))?/))) {
+      const p = m[1] || "";
+      lines = ["Sist. Arq.      Tam. Usado Disp. Uso% Montado em",
+        /^\/home/.test(p) ? "/dev/nvme0n1p3  1,8T  612G  1,1T  36% /home" : "/dev/nvme0n1p2  468G  121G  324G  28% /"];
+      if (!p) lines.push("/dev/nvme0n1p3  1,8T  612G  1,1T  36% /home", "tmpfs           7,7G  2,1M  7,7G   1% /tmp");
+    }
+    else if (/^free\b/.test(s)) lines = ["               total       usada       livre    compart.  buff/cache  disponível", "Mem.:           15Gi       4,2Gi       7,1Gi       412Mi       4,3Gi        10Gi", "Swap:          4,0Gi          0B       4,0Gi"];
+    else if (/^ss\s+-\w*t\w*/.test(s)) {
+      const g = s.match(/\|\s*grep\s+(.+)$/), port = g ? words(g[1]).join(" ") : "";
+      if (g && /^(80|443|8080|3000|5432|22)$/.test(port)) lines = [`tcp   LISTEN 0      511          0.0.0.0:${port}        0.0.0.0:*    users:(("${port === "22" ? "sshd" : port === "5432" ? "postgres" : "python3"}",pid=2481,fd=3))`];
+      else if (g) { lines = []; code = 1; }
+      else lines = ["Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process", "tcp   LISTEN 0      128          0.0.0.0:22         0.0.0.0:*    users:((\"sshd\",pid=812,fd=3))", "tcp   LISTEN 0      511          0.0.0.0:8080       0.0.0.0:*    users:((\"python3\",pid=2481,fd=3))"];
+    }
+    else if (/^uptime\b/.test(s)) lines = [" " + new Date().toTimeString().slice(0, 8) + " up 3 days,  2:41,  1 user,  load average: 0,42, 0,38, 0,35"];
+    else if (/^ls\b/.test(s)) lines = ["Área de Trabalho  Documentos  Downloads  Imagens  Músicas  Projetos  Vídeos"];
+    else if (/^pwd\b/.test(s)) lines = [home];
+    else if (/^whoami\b/.test(s)) lines = ["tux"];
+    else if (/^uname\b/.test(s)) lines = [/-a/.test(s) ? "Linux linux 6.8.0-45-generic #45-Ubuntu SMP PREEMPT_DYNAMIC x86_64 GNU/Linux" : "Linux"];
+    else if (/^date\b/.test(s)) lines = [new Date().toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "medium" })];
+    else if (/^git\s+pull\b/.test(s)) lines = ["Já está atualizado."];
+    else if (/^flatpak\s+update\b/.test(s)) { t = 1.1; lines = ["Procurando atualizações…", "Nada para fazer."]; }
+    else if (/^sleep\b/.test(s)) t = Math.min(parseFloat(s.split(/\s+/)[1]) || 1, 3);
+    else if ((m = s.match(/^exit\s+(\d+)/))) { code = +m[1]; t = 0; }
+    else if (/^false\b/.test(s)) { code = 1; t = 0; }
+    else if (/^true\b/.test(s)) t = 0;
+    else lines = [`(demonstração) “${seg.trim()}” seria executado aqui, no seu terminal real.`];
+    return { lines, t, code, sudo };
+  }
+  async function sim(code) {
+    if (risks(code).length) { await say("(demonstração) Nada foi executado de verdade, e ainda bem.", "dim"); return { code: 0, t: 0 }; }
+    const { segs } = splitTop(code, false);
+    let total = 0, last = 0, askedSudo = false;
+    for (let i = 0; i < segs.length; i++) {
+      const prevOp = i ? segs[i - 1].op : null;
+      if (prevOp === "&&" && last !== 0) continue;
+      if (prevOp === "||" && last === 0) continue;
+      const r = fake(segs[i].s);
+      if (r.sudo && !askedSudo) { await say("[sudo] senha para tux: ", "dim"); await pause(350); askedSudo = true; }
+      await pause(Math.min(r.t * 260, 650));
+      for (const l of r.lines) await say(l, "", 45);
+      total += r.t; last = r.code;
+    }
+    return { code: last, t: total };
+  }
+  async function riskBlock(items) {
+    await say("⚠ Atenção: operação(ões) potencialmente destrutiva(s) detectada(s):", "warn");
+    for (const [label, list] of items) for (const r of list) await say(`    • ${label}: ${r}`, "warn");
+    await pause(250);
+    await say("? Deseja realmente continuar? [s/N] n", "warn");
+    await say("⚠ Execução cancelada.", "warn");
+  }
+  function record(nome, tipo, codigo, dur) { runs.push({ data: now().full, nome, tipo, codigo, dur }); }
+
+  /* ---------- subcomandos ---------- */
+  async function banner() {
+    const tux = ["       .--.", "      |o_o |", "      |:_/ |", "     //   \\ \\", "    (|     | )", "   /'\\_   _/`\\", "   \\___)=(___/"];
+    for (const l of tux) await say(l, "cy", 12);
+    await say("");
+    await say(`  Lintux 1.0.0 — ${Object.keys(db.commands).length} comando(s) e ${Object.keys(db.lists).length} lista(s) salvos`, "b");
+    await say("");
+    await say("  lintux add <nome> '<comando>'    Salvar um comando");
+    await say("  lintux <nome>                    Executar");
+    await say("  lintux list                      Ver tudo o que está salvo");
+    await say("  lintux help                      Guia completo");
+    await say("");
+    await say("  Desenvolvido por M. A. KLIPPEL", "dim");
+    await say("  https://github.com/miqueiasklippel/lintux", "cy");
+  }
+  async function help() {
+    const H = [
+      ["USO", ["lintux <nome> [argumentos...]               Executa um comando ou uma lista salvos", "lintux [opções] <nome> [argumentos...]      Executa com opções"]],
+      ["COMANDOS INDIVIDUAIS", ["lintux add <nome> '<comando>'               Salva um novo comando", "lintux edit <nome> '<novo comando>'         Substitui o código de um comando", "lintux rm <nome> [-y]                       Remove o comando, retirando-o das listas", "lintux list cmd                             Lista os comandos salvos"]],
+      ["LISTAS DE EXECUÇÃO", ["lintux add list <lista>                     Cria uma lista vazia", "lintux add list <lista> <comando>           Adiciona um comando já salvo", "lintux add list <lista> <novo> '<comando>'  Salva e já adiciona à lista", "lintux mv <lista> <de> <para>               Move uma etapa de posição", "lintux rm list <lista> [etapa]              Remove a lista ou uma etapa", "lintux list lists                           Mostra as listas e as etapas"]],
+      ["INSPEÇÃO E ORGANIZAÇÃO", ["lintux show <nome>                          Mostra o código sem executar", "lintux search <termo>                       Procura em nomes, códigos e descrições", "lintux rename <atual> <novo>                Renomeia, atualizando as listas", "lintux desc <nome> '<descrição>'            Define uma descrição", "lintux history                              Histórico de execuções"]],
+      ["BACKUP", ["lintux new backup [pasta]                   Cria backup (padrão: Downloads)", "lintux add backup <arquivo> [--overwrite]   Restaura e mescla um backup"]],
+      ["OPÇÕES DE EXECUÇÃO (antes do nome)", ["-y  sem confirmação   -k  continua após falhas   -n  simulação   -q  silencioso"]],
+      ["PARÂMETROS", ["{{1}} obrigatório   {{1:padrão}} com valor padrão   {{@}} todos os argumentos"]]
+    ];
+    await say("Lintux 1.0.0 — gerenciador de comandos e listas de execução no terminal", "cy b");
+    for (const [h, ls] of H) { await say(""); await say(h, "cy b", 10); for (const l of ls) await say("  " + l, "", 10); }
+    await say("");
+    await say("  Use aspas simples ao salvar comandos com && | > ; $", "warn");
+  }
+  async function cmdAdd(a) {
+    if (!a.length) return err("uso incorreto de 'add'.", "lintux add <nome> '<comando>'   |   lintux add list <lista> [...]   |   lintux add backup <arquivo>");
+    if (a[0] === "list") return addList(a.slice(1));
+    if (a[0] === "backup") return say("⚠ A restauração de backup não está disponível nesta demonstração. No seu terminal: lintux add backup <arquivo.json>", "warn");
+    const [n, ...rest] = a, code = rest.join(" ").trim();
+    const v = validate(n); if (v) return err(...v);
+    if (!code) return err("informe o comando real a ser salvo.", `lintux add ${n} 'comando && outro comando'`);
+    db.commands[n] = { cmd: code, desc: "", t: now().full };
+    await say(`✔ Comando '${n}' salvo.`, "ok");
+    await say("  " + code, "cy");
+    await afterSave(code, rest.length > 1);
+    await say(`  Execute com: lintux ${n}`, "dim");
+  }
+  async function addList(a) {
+    if (!a.length) return err("informe o nome da lista.", "lintux add list <lista>");
+    const [l, c, ...rest] = a, code = rest.join(" ").trim();
+    let created = false;
+    if (!db.lists[l]) { const v = validate(l); if (v) return err(...v); created = true; }
+    if (!c) {
+      if (!created) return err(`a lista '${l}' já existe.`, `Adicione etapas com: lintux add list ${l} <comando>`);
+      db.lists[l] = { steps: [], desc: "", t: now().full };
+      await say(`✔ Lista '${l}' criada (vazia).`, "ok");
+      return say(`  Dica: adicione etapas com: lintux add list ${l} <comando>`, "dim");
+    }
+    let newCmd = false;
+    if (code) {
+      if (db.commands[c]) { if (db.commands[c].cmd !== code) return err(`já existe um comando '${c}' com outro conteúdo.`, `Altere-o com 'lintux edit ${c}' ou escolha outro nome.`); }
+      else { const v = validate(c); if (v) return err(...v); newCmd = true; }
+    } else if (!db.commands[c]) {
+      if (db.lists[c]) return err(`'${c}' é uma lista; listas não podem conter outras listas.`);
+      const s = suggest(c);
+      return err(`o comando '${c}' não existe.`, (s.length ? `Você quis dizer: ${s.join(", ")}? ` : "") + `Para criar e vincular de uma vez: lintux add list ${l} ${c} '<comando>'`);
+    }
+    if (created) db.lists[l] = { steps: [], desc: "", t: now().full };
+    if (newCmd) db.commands[c] = { cmd: code, desc: "", t: now().full };
+    const steps = db.lists[l].steps, dup = steps.includes(c);
+    steps.push(c);
+    if (created) await say(`✔ Lista '${l}' criada.`, "ok");
+    if (newCmd) { await say(`✔ Comando '${c}' salvo.`, "ok"); await afterSave(code, rest.length > 1); }
+    await say(`✔ '${c}' adicionado à lista '${l}' como etapa ${steps.length}.`, "ok");
+    if (dup) await say(`⚠ '${c}' já fazia parte desta lista e agora aparece mais de uma vez.`, "warn");
+  }
+  async function listCmds() {
+    const names = sortNames(db.commands);
+    if (!names.length) { await say("⚠ Nenhum comando salvo ainda.", "warn"); return say("  Dica: crie o primeiro com: lintux add <nome> '<comando>'", "dim"); }
+    await say(""); await say(`Comandos salvos (${names.length})`, "cy b");
+    const w = Math.min(Math.max(...names.map(n => n.length)), 22);
+    for (const n of names) {
+      await say("  " + (n.length > w ? n + "\n" + " ".repeat(w + 4) : n.padEnd(w) + "  ") + db.commands[n].cmd, "", 18);
+      if (db.commands[n].desc) await say(" ".repeat(w + 4) + "↳ " + db.commands[n].desc, "dim", 10);
+    }
+  }
+  async function listLists() {
+    const names = sortNames(db.lists);
+    if (!names.length) { await say("⚠ Nenhuma lista criada ainda.", "warn"); return say("  Dica: crie a primeira com: lintux add list <lista>", "dim"); }
+    await say(""); await say(`Listas de execução (${names.length})`, "cy b");
+    for (const n of names) {
+      const L = db.lists[n];
+      await say(""); await say(`  ${n} (${L.steps.length} etapa(s))`, "cy");
+      if (L.desc) await say("    ↳ " + L.desc, "dim");
+      if (!L.steps.length) await say("    (vazia)", "dim");
+      for (const [i, s] of L.steps.entries()) {
+        if (db.commands[s]) { await say(`    ${i + 1}. ${s}`, "", 14); await say("       " + db.commands[s].cmd, "dim", 14); }
+        else await say(`    ${i + 1}. ${s} — comando não encontrado`, "err");
+      }
+    }
+  }
+  async function cmdList(a) {
+    const e = (a[0] || "tudo").toLowerCase();
+    if (["cmd", "cmds", "comandos", "commands"].includes(e)) await listCmds();
+    else if (["lists", "list", "listas"].includes(e)) await listLists();
+    else if (["tudo", "all"].includes(e)) { await listCmds(); await listLists(); }
+    else return err(`opção desconhecida para 'list': ${a[0]}`, "lintux list cmd   |   lintux list lists   |   lintux list");
+    await say("");
+  }
+  async function cmdShow(a) {
+    if (a[0] === "list" || a[0] === "cmd") a = a.slice(1);
+    if (!a.length) return err("informe o nome.", "lintux show <nome>");
+    const n = a[0];
+    if (db.commands[n]) {
+      const c = db.commands[n];
+      await say(""); await say(`Comando: ${n}`, "cy b");
+      await say("  Código:", "dim"); await say("    " + c.cmd, "cy");
+      if (c.desc) await say("  Descrição: " + c.desc);
+      const p = params(c.cmd); if (p.length) await say("  Parâmetros: " + p.join("; "));
+      const u = usedIn(n); await say("  Listas: " + (u.length ? u.join(", ") : "nenhuma"));
+      await say(`  Criado em: ${c.t}`, "dim");
+      for (const r of risks(c.cmd)) await say(`⚠ Atenção: envolve ${r} (pedirá confirmação ao executar).`, "warn");
+      return;
+    }
+    if (db.lists[n]) {
+      const L = db.lists[n];
+      await say(""); await say(`Lista: ${n} (${L.steps.length} etapa(s))`, "cy b");
+      if (L.desc) await say("  Descrição: " + L.desc);
+      if (!L.steps.length) await say("⚠ A lista está vazia.", "warn");
+      for (const [i, s] of L.steps.entries()) {
+        await say("");
+        if (db.commands[s]) { await say(`  [${i + 1}/${L.steps.length}] ${s}`, "cy b"); await say("      " + db.commands[s].cmd); }
+        else await say(`  [${i + 1}/${L.steps.length}] ${s} — comando não encontrado`, "err");
+      }
+      return;
+    }
+    return notFound(n);
+  }
+  async function cmdRm(a) {
+    const yes = a.some(x => x === "-y" || x === "--yes");
+    a = a.filter(x => x !== "-y" && x !== "--yes");
+    if (!a.length) return err("informe o que deseja remover.", "lintux rm <comando>   |   lintux rm list <lista> [etapa]");
+    if (a[0] === "list") {
+      const [l, alvo] = a.slice(1);
+      if (!l) return err("informe o nome da lista.", "lintux rm list <lista> [etapa]");
+      if (!db.lists[l]) { if (db.commands[l]) return err(`'${l}' é um comando, não uma lista.`, `Para removê-lo use: lintux rm ${l}`); return notFound(l, "lista"); }
+      if (!alvo) { delete db.lists[l]; return say(`✔ Lista '${l}' removida. Os comandos individuais continuam salvos.`, "ok"); }
+      const st = db.lists[l].steps;
+      let i = /^\d+$/.test(alvo) ? +alvo - 1 : st.indexOf(alvo);
+      if (/^\d+$/.test(alvo) && !(i >= 0 && i < st.length)) return err(`a lista '${l}' tem ${st.length} etapa(s); a posição ${alvo} não existe.`);
+      if (i < 0) return err(`'${alvo}' não faz parte da lista '${l}'.`, `Veja as etapas com: lintux show ${l}`);
+      const r = st.splice(i, 1)[0];
+      return say(`✔ Etapa ${i + 1} ('${r}') retirada da lista '${l}'. O comando continua salvo.`, "ok");
+    }
+    for (const n of a) {
+      if (db.commands[n]) {
+        const u = usedIn(n);
+        if (u.length) {
+          await say(`⚠ '${n}' faz parte da(s) lista(s): ${u.join(", ")}.`, "warn");
+          if (!yes) { await pause(300); await say("? Remover o comando e retirá-lo dessas listas? [s/N] s", "warn"); }
+          u.forEach(l => db.lists[l].steps = db.lists[l].steps.filter(s => s !== n));
+        }
+        delete db.commands[n];
+        await say(`✔ Comando '${n}' removido.` + (u.length ? ` Também foi retirado de: ${u.join(", ")}.` : ""), "ok");
+      } else if (db.lists[n]) { await err(`'${n}' é uma lista.`); await say(`  Dica: para removê-la use: lintux rm list ${n}`, "dim"); }
+      else { const s = suggest(n); await err(`comando '${n}' não encontrado.`); if (s.length) await say(`  Dica: você quis dizer: ${s.join(", ")}?`, "dim"); }
+    }
+  }
+  async function cmdEdit(a) {
+    if (a[0] === "list" && a.length > 1) a = a.slice(1);
+    if (!a.length) return err("informe o nome a editar.", "lintux edit <nome> '<novo comando>'");
+    const [n, ...rest] = a, novo = rest.join(" ").trim();
+    if (db.commands[n]) {
+      if (!novo) return say("(demonstração) No seu terminal, 'lintux edit " + n + "' abre o código no seu editor ($EDITOR, nano ou vim).", "dim");
+      const antigo = db.commands[n].cmd;
+      if (novo === antigo) return say(`⚠ Nenhuma alteração foi feita em '${n}'.`, "warn");
+      db.commands[n].cmd = novo;
+      await say(`✔ Comando '${n}' atualizado.`, "ok");
+      await say("  Antes:", "dim"); await say("    " + antigo, "err");
+      await say("  Depois:", "dim"); await say("    " + novo, "ok");
+      await afterSave(novo, rest.length > 1);
+      const u = usedIn(n); if (u.length) await say("  A alteração vale também para as listas: " + u.join(", "), "dim");
+      return;
+    }
+    if (db.lists[n]) return say("(demonstração) No seu terminal, 'lintux edit " + n + "' abre as etapas no editor, uma por linha.", "dim");
+    return notFound(n);
+  }
+  async function cmdRename(a) {
+    if (a.length !== 2) return err("uso incorreto de 'rename'.", "lintux rename <nome atual> <novo nome>");
+    const [o, n] = a;
+    if (db.commands[o]) {
+      const v = validate(n); if (v) return err(...v);
+      db.commands[n] = db.commands[o]; delete db.commands[o];
+      const u = usedIn(o); u.forEach(l => db.lists[l].steps = db.lists[l].steps.map(s => s === o ? n : s));
+      return say(`✔ Comando '${o}' renomeado para '${n}'.` + (u.length ? ` Listas atualizadas: ${u.join(", ")}.` : ""), "ok");
+    }
+    if (db.lists[o]) { const v = validate(n); if (v) return err(...v); db.lists[n] = db.lists[o]; delete db.lists[o]; return say(`✔ Lista '${o}' renomeada para '${n}'.`, "ok"); }
+    return notFound(o);
+  }
+  async function cmdDesc(a) {
+    if (!a.length) return err("informe o nome.", "lintux desc <nome> 'texto da descrição'");
+    const [n, ...rest] = a, txt = rest.join(" ").trim(), it = db.commands[n] || db.lists[n];
+    if (!it) return notFound(n);
+    it.desc = txt;
+    return say(`✔ Descrição de '${n}' ${txt ? "atualizada" : "removida"}.`, "ok");
+  }
+  async function cmdMv(a) {
+    if (a.length !== 3 || !/^\d+$/.test(a[1]) || !/^\d+$/.test(a[2])) return err("uso incorreto de 'mv'.", "lintux mv <lista> <posição atual> <nova posição>  (ex.: lintux mv manutencao 2 1)");
+    const L = db.lists[a[0]]; if (!L) return notFound(a[0], "lista");
+    const de = +a[1], para = +a[2];
+    if (!(de >= 1 && de <= L.steps.length && para >= 1 && para <= L.steps.length)) return err(`posições válidas para '${a[0]}': de 1 a ${L.steps.length}.`);
+    L.steps.splice(para - 1, 0, L.steps.splice(de - 1, 1)[0]);
+    await say(`✔ Etapa movida da posição ${de} para a ${para}. Nova ordem:`, "ok");
+    for (const [i, s] of L.steps.entries()) await say(`    ${i + 1}. ${s}`);
+  }
+  async function cmdSearch(a) {
+    if (!a.length) return err("informe o termo de busca.", "lintux search <termo>");
+    const t = a.join(" ").toLowerCase();
+    const cs = sortNames(db.commands).filter(n => n.toLowerCase().includes(t) || db.commands[n].cmd.toLowerCase().includes(t) || db.commands[n].desc.toLowerCase().includes(t));
+    const ls = sortNames(db.lists).filter(n => n.toLowerCase().includes(t) || db.lists[n].desc.toLowerCase().includes(t) || db.lists[n].steps.some(s => s.toLowerCase().includes(t)));
+    if (!cs.length && !ls.length) return say(`⚠ Nada encontrado para '${t}'.`, "warn");
+    if (cs.length) { await say(""); await say(`Comandos (${cs.length})`, "cy b"); for (const n of cs) { await say("  " + n, "cy"); await say("    " + db.commands[n].cmd); } }
+    if (ls.length) { await say(""); await say(`Listas (${ls.length})`, "cy b"); for (const n of ls) await say(`  ${n}  → ${db.lists[n].steps.join(" ")}`, "cy"); }
+    await say("");
+  }
+  async function cmdHistory(a) {
+    if (a[0] === "clear" || a[0] === "limpar") { runs = []; return say("✔ Histórico apagado.", "ok"); }
+    if (!runs.length) return say("⚠ O histórico está vazio. Execute um comando ou uma lista primeiro.", "warn");
+    const r = runs.slice(-(+a[0] || 20));
+    await say(""); await say(`Últimas ${r.length} execução(ões)`, "cy b");
+    for (const x of r) await say(`  ${x.data}  ${x.codigo === 0 ? "✔" : "✖"}  ${x.nome.padEnd(14)} ${x.tipo.padEnd(8)} ${fmt(x.dur).padStart(7)}  código ${x.codigo}`, x.codigo === 0 ? "" : "err", 14);
+    await say("");
+  }
+  async function cmdNew(a) {
+    if (a[0] !== "backup") return err("uso incorreto de 'new'.", "lintux new backup [pasta de destino]");
+    const dir = a[1] ? a.slice(1).join(" ").replace(/^~/, "/home/tux").replace(/\/$/, "") : "/home/tux/Downloads";
+    await pause(300);
+    await say(`✔ Backup criado com sucesso (${Object.keys(db.commands).length} comando(s), ${Object.keys(db.lists).length} lista(s)).`, "ok");
+    await say("");
+    await say("  Arquivo salvo em:", "b");
+    await say(`  ${dir}/lintux_backup_${now().file}.json`, "ok b");
+    await say("");
+    await say(`  Para restaurar: lintux add backup '${dir}/lintux_backup_${now().file}.json'`, "dim");
+  }
+
+  /* ---------- execução ---------- */
+  async function runCmd(name, args, o) {
+    const r = resolve(db.commands[name].cmd, args);
+    if (r.missing) return err(`argumento obrigatório ausente (posição ${r.missing.join(", ")}).`, "Parâmetros deste código: " + params(db.commands[name].cmd).join("; "));
+    if (o.n) { await say(""); await say(`Simulação — '${name}' NÃO será executado:`, "cy b"); return say("  " + r.code, "cy"); }
+    const rk = risks(r.code);
+    if (rk.length && !o.y) return riskBlock([[name, rk]]);
+    if (!o.q) { await say("▶ " + name, "cy b"); await say("  " + r.code, "dim"); }
+    const res = await sim(r.code);
+    record(name, "comando", res.code, res.t);
+    if (res.code === 0) { if (!o.q) await say(`✔ '${name}' concluído (${fmt(res.t)}).`, "ok"); }
+    else await say(`✖ Erro: '${name}' terminou com código de saída ${res.code} (${fmt(res.t)}).`, "err");
+  }
+  async function runList(name, args, o) {
+    const steps = db.lists[name].steps, total = steps.length;
+    if (!total) { await say(`⚠ A lista '${name}' está vazia.`, "warn"); return say(`  Dica: adicione etapas com: lintux add list ${name} <comando>`, "dim"); }
+    const miss = steps.filter(s => !db.commands[s]);
+    if (miss.length) return err(`a lista '${name}' referencia comando(s) inexistente(s): ${miss.join(", ")}.`, `Corrija com 'lintux rm list ${name} <etapa>'.`);
+    const usesParams = steps.some(s => new RegExp(PARAM_SRC).test(db.commands[s].cmd));
+    if (args.length && !usesParams) await say("⚠ Os argumentos informados foram ignorados: nenhuma etapa desta lista usa parâmetros {{1}} ou {{@}}.", "warn");
+    const codes = [];
+    for (const s of steps) {
+      const r = resolve(db.commands[s].cmd, args, false);
+      if (r.missing) return err(`argumento obrigatório ausente (posição ${r.missing.join(", ")}).`, `Etapa '${s}': ` + params(db.commands[s].cmd).join("; "));
+      codes.push(r.code);
+    }
+    if (o.n) {
+      await say(""); await say(`Simulação — lista '${name}' (${total} etapas) NÃO será executada:`, "cy b");
+      for (const [i, s] of steps.entries()) { await say(`  [${i + 1}/${total}] ${s}`, "cy"); await say("      " + codes[i]); }
+      return;
+    }
+    const danger = steps.map((s, i) => [`etapa ${i + 1} (${s})`, risks(codes[i])]).filter(([, r]) => r.length);
+    if (danger.length && !o.y) return riskBlock(danger);
+    let dur = 0; const fails = [];
+    for (const [i, s] of steps.entries()) {
+      if (!o.q) { await say(""); await say(`[${i + 1}/${total}] Executando: ${s}...`, "cy b"); await say("      " + codes[i], "dim"); }
+      const r = await sim(codes[i]); dur += r.t;
+      if (r.code === 0) { if (!o.q) await say(`✔ Etapa ${i + 1}/${total} concluída (${fmt(r.t)}).`, "ok"); continue; }
+      await say(`✖ Erro: falha na etapa ${i + 1}/${total} ('${s}') — código de saída ${r.code}.`, "err");
+      fails.push([i + 1, s, r.code]);
+      if (!o.k) {
+        const pend = steps.slice(i + 1).map((x, j) => `${i + j + 2}. ${x}`);
+        if (pend.length) { await say("⚠ Etapas não executadas: " + pend.join(", "), "warn"); await say(`  Dica: para continuar mesmo após falhas, use: lintux -k ${name}`, "dim"); }
+        record(name, "lista", r.code, dur); return;
+      }
+    }
+    if (fails.length) {
+      await say(`⚠ Lista '${name}' concluída com ${fails.length} falha(s) em ${total} etapa(s): ${fails.map(([i, s, c]) => `${i} ('${s}', código ${c})`).join(", ")}. Duração: ${fmt(dur)}.`, "warn");
+      return record(name, "lista", fails[0][2], dur);
+    }
+    await say("");
+    await say(`✔ Lista '${name}' concluída: ${total}/${total} etapas em ${fmt(dur)}.`, "ok");
+    record(name, "lista", 0, dur);
+  }
+  async function runItem(a) {
+    const o = { y: false, k: false, n: false, q: false };
+    const map = { "-y": "y", "--yes": "y", "-k": "k", "--keep-going": "k", "-n": "n", "--dry-run": "n", "-q": "q", "--quiet": "q" };
+    let i = 0;
+    while (i < a.length && a[i].startsWith("-") && a[i] !== "-") {
+      if (map[a[i]]) o[map[a[i]]] = true;
+      else if (/^-[yknq]+$/.test(a[i])) for (const c of a[i].slice(1)) o[c] = true;
+      else return err("opção desconhecida: " + a[i], "Veja as opções em: lintux help");
+      i++;
+    }
+    const rest = a.slice(i);
+    if (!rest.length) return err("informe o nome do comando ou da lista a executar.", "lintux <nome>");
+    const [name, ...args] = rest;
+    if (name === "rm" && o.y) return cmdRm(args.concat("-y"));
+    if (SUB.includes(name)) return lintux(rest);
+    if (db.commands[name]) return runCmd(name, args, o);
+    if (db.lists[name]) return runList(name, args, o);
+    return notFound(name);
+  }
+  async function lintux(a) {
+    if (!a.length) return banner();
+    const [f, ...r] = a;
+    if (f === "help" || f === "-h" || f === "--help") return help();
+    if (f === "version" || f === "--version" || f === "-V") return say("Lintux 1.0.0 (Python 3.12.3, shell: /usr/bin/bash)");
+    const table = { add: cmdAdd, list: cmdList, show: cmdShow, rm: cmdRm, edit: cmdEdit, rename: cmdRename, desc: cmdDesc, mv: cmdMv, search: cmdSearch, history: cmdHistory, new: cmdNew, run: runItem };
+    if (table[f]) return table[f](r);
+    return runItem(a);
+  }
+
+  /* ---------- o "bash" da demonstração ---------- */
+  async function shell(raw) {
+    const line = raw.trim();
+    if (!line) return;
+    const { segs, open } = splitTop(line, true);
+    if (open) return say(`bash: aspas ${open === "'" ? "simples" : "duplas"} não fechadas. No terminal real, o bash esperaria você fechá-las.`, "err");
+    for (let i = 0; i < segs.length; i++) {
+      const w = words(segs[i].s);
+      if (!w.length) continue;
+      const prevOp = i ? segs[i - 1].op : null;
+      if (i > 0) {
+        const first = words(segs[0].s);
+        if (first[0] === "lintux" && (first[1] === "add" || first[1] === "edit")) {
+          await say(`⚠ Sem aspas, o bash leu “${prevOp}” como operador do próprio shell: só a parte antes dele foi entregue ao LinTux, e “${segs.slice(i).map(x => x.s.trim()).join(" ")}” seria executado agora, fora dele.`, "warn");
+          await say("  Dica: envolva o comando inteiro em aspas simples: lintux add <nome> '...'", "dim");
+          return;
+        }
+        if (prevOp === "|") { await say("(demonstração) O encadeamento com | fora do LinTux não é simulado aqui.", "dim"); return; }
+      }
+      const [cmd, ...args] = w;
+      if (cmd === "lintux") await lintux(args);
+      else if (cmd === "clear") { out.textContent = ""; }
+      else if (cmd === "help") { await say("Este é um terminal de demonstração do LinTux. Comece com: lintux help", "cy"); }
+      else if (["ls", "pwd", "whoami", "uname", "date", "echo", "uptime", "free", "df"].includes(cmd)) { for (const l of fake(segs[i].s).lines) await say(l); }
+      else if (cmd === "sudo" || cmd === "apt" || cmd === "dnf") await say(`(demonstração) Aqui só o lintux funciona por completo. Salve com: lintux add <nome> '${segs[i].s.trim()}'`, "dim");
+      else await say(`bash: ${cmd}: comando não encontrado`, "err");
+    }
+  }
+
+  async function submit(raw) {
+    if (busy) return;
+    busy = true; input.disabled = true; setChips(true);
+    echoPrompt(raw);
+    if (raw.trim()) { history.push(raw); hIdx = history.length; }
+    try { await shell(raw); }
+    catch (e) { await say("✖ Erro interno da demonstração: " + e.message, "err"); }
+    busy = false; input.disabled = false; setChips(false);
+    scroll();
+    if (document.activeElement === document.body || document.activeElement === null || input.dataset.keep === "1") input.focus({ preventScroll: true });
+  }
+
+  /* ---------- teclado, histórico e Tab ---------- */
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); const v = input.value; input.value = ""; input.dataset.keep = "1"; submit(v); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (hIdx > 0) { hIdx--; input.value = history[hIdx]; } }
+    else if (e.key === "ArrowDown") { e.preventDefault(); if (hIdx < history.length - 1) { hIdx++; input.value = history[hIdx]; } else { hIdx = history.length; input.value = ""; } }
+    else if (e.key === "Tab") {
+      const v = input.value, parts = v.split(/\s+/), last = parts[parts.length - 1];
+      if (!v.trim()) return;
+      e.preventDefault();
+      let pool = [];
+      if (parts.length === 1) pool = ["lintux", "clear", "help"];
+      else if (parts[0] === "lintux") {
+        const names = [...Object.keys(db.commands), ...Object.keys(db.lists)];
+        if (parts.length === 2) pool = [...SUB, ...names];
+        else if (["show", "edit", "rename", "desc", "run"].includes(parts[1]) && parts.length === 3) pool = names;
+        else if (parts[1] === "rm") pool = parts[2] === "list" && parts.length === 4 ? Object.keys(db.lists) : ["list", ...Object.keys(db.commands)];
+        else if (parts[1] === "add" && parts.length === 3) pool = ["list", "backup"];
+        else if (parts[1] === "add" && parts[2] === "list") pool = parts.length === 4 ? Object.keys(db.lists) : Object.keys(db.commands);
+        else if (parts[1] === "list" && parts.length === 3) pool = ["cmd", "lists"];
+        else if (parts[1] === "new" && parts.length === 3) pool = ["backup"];
+        else if (parts[1] === "mv" && parts.length === 3) pool = Object.keys(db.lists);
+        else if (/^-/.test(parts[1]) && parts.length === 3) pool = names;
+      }
+      const hits = [...new Set(pool)].filter(x => x.startsWith(last)).sort();
+      if (hits.length === 1) { parts[parts.length - 1] = hits[0]; input.value = parts.join(" ") + " "; }
+      else if (hits.length > 1) {
+        let pre = hits[0];
+        for (const h of hits) while (!h.startsWith(pre)) pre = pre.slice(0, -1);
+        if (pre.length > last.length) { parts[parts.length - 1] = pre; input.value = parts.join(" "); }
+        else { echoPrompt(v); const d = document.createElement("div"); d.className = "ln dim"; d.textContent = hits.join("   "); out.appendChild(d); scroll(); }
+      }
+    }
+  });
+  body.addEventListener("click", () => { if (!getSelection().toString()) input.focus({ preventScroll: true }); });
+
+  /* ---------- exemplos clicáveis ---------- */
+  const EXAMPLES = [
+    "lintux list",
+    "lintux add porta 'ss -tulpn | grep {{1}}'",
+    "lintux porta 8080",
+    "lintux disco /home",
+    "lintux add list manutencao espaco 'df -h'",
+    "lintux -n manutencao",
+    "lintux manutencao",
+    "lintux add teste sudo apt update && sudo apt upgrade -y",
+    "lintux add limpeza 'rm -rf ~'",
+    "lintux limpeza",
+    "lintux history",
+    "lintux new backup",
+    "lintux help"
+  ];
+  const chips = $("#chips");
+  EXAMPLES.forEach(cmd => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = cmd;
+    b.addEventListener("click", () => typeAndRun(cmd));
+    chips.appendChild(b);
+  });
+  function setChips(off) { chips.querySelectorAll(".chip").forEach(c => c.disabled = off); }
+  async function typeAndRun(cmd) {
+    if (busy) return;
+    input.dataset.keep = "0";
+    if (reduce) { submit(cmd); return; }
+    busy = true; setChips(true);
+    input.value = "";
+    for (const ch of cmd) { input.value += ch; await sleep(14); }
+    await sleep(120);
+    input.value = "";
+    busy = false;
+    submit(cmd);
+  }
+
+  /* ---------- início ---------- */
+  async function boot() {
+    db = freshDb(); history = []; runs = []; hIdx = 0;
+    out.textContent = "";
+    instant = true;
+    echoPrompt("lintux");
+    await banner();
+    instant = false;
+    body.scrollTop = 0;
+  }
+  $("#reset").addEventListener("click", () => { if (!busy) boot(); });
+  boot();
+})();
+</script>
+</body>
+</html>
