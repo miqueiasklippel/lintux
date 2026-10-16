@@ -14,7 +14,7 @@
 
 **Save long terminal commands under short names, chain them into run lists, and execute them safely.**
 
-[Website](https://miqueiasklippel.github.io/lintux/) · [Português](README.pt-BR.md) · English
+[Website](https://lintux.klippelbit.app.br/) · [Português](README.pt-BR.md) · English
 
 ![Python](https://img.shields.io/badge/python-3.6%2B-blue)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
