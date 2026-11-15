@@ -37,7 +37,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-VERSAO = "1.0.0"
+VERSAO = "1.0.1"
 AUTOR = "M. A. KLIPPEL"
 CONTATO = "contato@klippelbit.app.br"
 REPOSITORIO = "https://github.com/miqueiasklippel/lintux"
@@ -460,8 +460,9 @@ def avisos_ao_salvar(codigo, varios_argumentos=False):
     if parametros:
         print("{}  Parâmetros: {}{}".format(OUT.dim, "; ".join(parametros), OUT.reset))
     if varios_argumentos:
-        dica("na próxima vez, envolva o comando em aspas simples '...' para preservar "
-             "espaços, aspas internas e operadores como && | > ;")
+        dica("na próxima vez, envolva o comando em aspas simples '...' para preservar espaços e "
+             "operadores como && | > ; e, se ele já tiver aspas internas, informe só o nome "
+             "(lintux add <nome>) e digite o comando quando o Lintux pedir.")
 
 
 # =============================================================================
@@ -665,12 +666,125 @@ def _criar_comando(db, nome, codigo):
     db["commands"][nome] = {"cmd": codigo, "desc": "", "created": momento, "updated": momento}
 
 
+# -----------------------------------------------------------------------------
+# Entrada do código de um comando (v1.0.1)
+#
+# O bash não permite aspas simples dentro de aspas simples. Em
+#     lintux add x 'grep 'foo bar' arquivo'
+# o próprio shell consome as aspas internas e entrega ao Lintux os pedaços
+# "grep foo" e "bar arquivo", antes de o Lintux poder fazer qualquer coisa.
+# Por isso o código também pode ser informado sem passar pelo shell:
+#   - modo interativo:  lintux add x          (o Lintux pede o comando)
+#   - entrada padrão:   lintux add x - <<'EOF' ... EOF   (ou um arquivo)
+# E, quando os argumentos chegam partidos, o Lintux avisa em vez de salvar errado.
+# -----------------------------------------------------------------------------
+
+def _ativar_readline(texto_inicial=None):
+    """Ativa setas, Home/End e histórico de edição no input(), quando disponível."""
+    try:
+        import readline  # noqa: F401  (módulo padrão no Linux)
+    except ImportError:
+        return None
+    if texto_inicial:
+        readline.set_startup_hook(lambda: readline.insert_text(texto_inicial))
+    return readline
+
+
+def ler_entrada_padrao(nome):
+    """Lê o código enviado por pipe, arquivo ou heredoc, preservando-o exatamente."""
+    if sys.stdin.isatty():
+        print("{}Digite ou cole o comando de '{}' e termine com Ctrl+D numa linha vazia:{}".format(
+            ERR.ciano, nome, ERR.reset), file=sys.stderr)
+    try:
+        texto = sys.stdin.read()
+    except KeyboardInterrupt:
+        raise ErroLintux("operação cancelada; nada foi salvo.", codigo=130)
+    codigo = texto.strip()
+    if not codigo:
+        raise ErroLintux("nenhum comando foi recebido pela entrada padrão; nada foi salvo.",
+                         dica="Exemplo: lintux add {} - <<'EOF'   (nova linha)   comando   (nova linha)   EOF".format(nome))
+    return codigo
+
+
+def ler_comando_interativo(nome, atual=None):
+    """
+    Pede o código no terminal com input(), que não passa pelo shell: aspas, $, |,
+    && e ; ficam exatamente como digitados. Uma linha terminada em \\ continua na
+    próxima, como no bash. Sem terminal interativo, lê a entrada padrão.
+    """
+    if not sys.stdin.isatty():
+        return ler_entrada_padrao(nome)
+
+    readline = _ativar_readline(atual)
+    print("{}{}Digite o comando de '{}' exatamente como no terminal.{}".format(
+        OUT.ciano, OUT.negrito, nome, OUT.reset))
+    print("{}  Aspas, $variáveis e operadores (| && > ;) são salvos como estão, sem aspas extras por fora.\n"
+          "  Termine a linha com \\ para continuar na próxima. Enter vazio ou Ctrl+C cancela.{}".format(OUT.dim, OUT.reset))
+    linhas = []
+    try:
+        while True:
+            linha = input("{}{}{} ".format(OUT.ciano, "›" if not linhas else "…", OUT.reset))
+            if readline is not None:
+                readline.set_startup_hook(None)  # o texto inicial vale só para a primeira linha
+            linhas.append(linha)
+            if not linha.rstrip().endswith("\\"):
+                break
+    except (EOFError, KeyboardInterrupt):
+        print()
+        raise ErroLintux("operação cancelada; nada foi salvo.", codigo=130)
+    finally:
+        if readline is not None:
+            readline.set_startup_hook(None)
+    codigo = "\n".join(linhas).strip()
+    if not codigo:
+        raise ErroLintux("nenhum comando foi digitado; nada foi salvo.")
+    return codigo
+
+
+def argumentos_partidos(partes):
+    """
+    Vários argumentos em que algum contém espaço indicam que havia aspas internas
+    que o shell consumiu: com aspas corretas o comando chega como um único
+    argumento, e sem nenhuma aspa nenhum argumento contém espaço.
+    """
+    return len(partes) > 1 and any(re.search(r"\s", p) for p in partes)
+
+
+def obter_codigo(nome, partes, atual=None):
+    """
+    Devolve (código, veio_dos_argumentos) para salvar no comando 'nome':
+      sem partes  -> modo interativo (ou entrada padrão, se houver pipe/heredoc)
+      ['-']       -> entrada padrão
+      argumentos  -> unidos por espaço, com verificação de aspas consumidas pelo shell
+    """
+    if not partes:
+        return ler_comando_interativo(nome, atual), False
+    if partes == ["-"]:
+        return ler_entrada_padrao(nome), False
+
+    codigo = " ".join(partes).strip()
+    if argumentos_partidos(partes):
+        alerta("As aspas internas do comando foram consumidas pelo shell antes de chegar ao Lintux.", sys.stderr)
+        print("  O Lintux recebeu {} pedaços separados: {}".format(
+            len(partes), "  ".join("[{}]".format(p) for p in partes)), file=sys.stderr)
+        print("  Unidos, eles formariam: {}".format(codigo), file=sys.stderr)
+        if sys.stdin.isatty():
+            if confirmar("Digitar o comando agora, sem passar pelo shell? (n salva como foi recebido)", padrao=True):
+                return ler_comando_interativo(nome, atual), False
+            alerta("Salvando como foi recebido, a seu pedido.")
+        else:
+            raise ErroLintux("o comando chegou partido porque o shell consumiu as aspas internas; nada foi salvo.",
+                             dica="Envie o comando pela entrada padrão: lintux add {} - <<'EOF'  (o comando em "
+                                  "uma linha)  EOF".format(nome))
+    return codigo, True
+
+
 def cmd_add(args):
-    """lintux add <nome> '<comando>' | add list ... | add backup ..."""
+    """lintux add <nome> ['<comando>' | -] | add list ... | add backup ..."""
     if not args:
         raise ErroLintux("uso incorreto de 'add'.",
-                         dica="lintux add <nome> '<comando>'   |   lintux add list <lista> [...]   |   "
-                              "lintux add backup <arquivo>")
+                         dica="lintux add <nome> '<comando>'   |   lintux add <nome>   |   "
+                              "lintux add list <lista> [...]   |   lintux add backup <arquivo>")
     if args[0] == "list":
         return cmd_add_list(args[1:])
     if args[0] == "backup":
@@ -678,16 +792,13 @@ def cmd_add(args):
 
     db = carregar_db()
     nome = args[0]
-    codigo = " ".join(args[1:]).strip()
     validar_nome(db, nome)
-    if not codigo:
-        raise ErroLintux("informe o comando real a ser salvo.",
-                         dica="lintux add {} 'comando && outro comando'".format(nome))
+    codigo, dos_argumentos = obter_codigo(nome, args[1:])
     _criar_comando(db, nome, codigo)
     salvar_db(db)
     sucesso("Comando '{}' salvo.".format(nome))
     imprimir_bloco(codigo, 2, OUT.ciano)
-    avisos_ao_salvar(codigo, varios_argumentos=len(args) > 2)
+    avisos_ao_salvar(codigo, varios_argumentos=dos_argumentos and len(args) > 2)
     print("{}  Execute com: lintux {}{}".format(OUT.dim, nome, OUT.reset))
     return 0
 
@@ -715,16 +826,20 @@ def cmd_add_list(args):
         return 0
 
     nome_cmd = args[1]
-    codigo = " ".join(args[2:]).strip()
+    partes = args[2:]
+    codigo = ""
+    dos_argumentos = False
     novo_comando = False
-    if codigo:
+    if partes:
         # Formato 2: cria o comando e o vincula à lista
+        if nome_cmd not in db["commands"]:
+            validar_nome(db, nome_cmd)
+        codigo, dos_argumentos = obter_codigo(nome_cmd, partes)
         if nome_cmd in db["commands"]:
             if db["commands"][nome_cmd]["cmd"] != codigo:
                 raise ErroLintux("já existe um comando '{}' com outro conteúdo.".format(nome_cmd),
                                  dica="Altere-o com 'lintux edit {}' ou escolha outro nome.".format(nome_cmd))
         else:
-            validar_nome(db, nome_cmd)
             _criar_comando(db, nome_cmd, codigo)
             novo_comando = True
     elif nome_cmd not in db["commands"]:
@@ -732,9 +847,20 @@ def cmd_add_list(args):
         if nome_cmd in db["lists"]:
             raise ErroLintux("'{}' é uma lista; listas não podem conter outras listas.".format(nome_cmd))
         parecidos = sugestoes(db, nome_cmd)
-        raise ErroLintux("o comando '{}' não existe.".format(nome_cmd),
-                         dica=("Você quis dizer: {}? ".format(", ".join(parecidos)) if parecidos else "") +
-                         "Para criar e vincular de uma vez: lintux add list {} {} '<comando>'".format(lista, nome_cmd))
+        oferecer = sys.stdin.isatty() and nome_valido(nome_cmd)
+        if oferecer:
+            alerta("O comando '{}' ainda não existe.".format(nome_cmd))
+            if parecidos:
+                dica("comandos com nome parecido: {}.".format(", ".join(parecidos)))
+        if oferecer and confirmar("Criar '{}' agora e adicioná-lo à lista '{}'?".format(nome_cmd, lista),
+                                  padrao=not parecidos):
+            codigo = ler_comando_interativo(nome_cmd)
+            _criar_comando(db, nome_cmd, codigo)
+            novo_comando = True
+        else:
+            raise ErroLintux("o comando '{}' não existe.".format(nome_cmd),
+                             dica=("Você quis dizer: {}? ".format(", ".join(parecidos)) if parecidos else "") +
+                             "Para criar e vincular de uma vez: lintux add list {} {} '<comando>'".format(lista, nome_cmd))
 
     etapas = db["lists"][lista]["steps"]
     repetido = nome_cmd in etapas
@@ -746,21 +872,28 @@ def cmd_add_list(args):
         sucesso("Lista '{}' criada.".format(lista))
     if novo_comando:
         sucesso("Comando '{}' salvo.".format(nome_cmd))
-        avisos_ao_salvar(codigo, varios_argumentos=len(args) > 3)
+        imprimir_bloco(codigo, 2, OUT.ciano)
+        avisos_ao_salvar(codigo, varios_argumentos=dos_argumentos and len(args) > 3)
     sucesso("'{}' adicionado à lista '{}' como etapa {}.".format(nome_cmd, lista, len(etapas)))
     if repetido:
         alerta("'{}' já fazia parte desta lista e agora aparece mais de uma vez.".format(nome_cmd))
     return 0
 
 
+def encontrar_editor():
+    """$VISUAL, $EDITOR, nano, vim ou vi, nesta ordem; None se nenhum existir."""
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    if editor:
+        return editor
+    for candidato in ("nano", "vim", "vi"):
+        if shutil.which(candidato):
+            return candidato
+    return None
+
+
 def abrir_editor(conteudo, sufixo):
     """Abre o editor do usuário ($VISUAL, $EDITOR, nano, vim ou vi) e devolve o texto final."""
-    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
-    if not editor:
-        for candidato in ("nano", "vim", "vi"):
-            if shutil.which(candidato):
-                editor = candidato
-                break
+    editor = encontrar_editor()
     if not editor:
         raise ErroLintux("nenhum editor de texto foi encontrado.",
                          dica="Defina a variável EDITOR (ex.: export EDITOR=nano) ou informe o novo "
@@ -789,14 +922,21 @@ def cmd_edit(args):
         raise ErroLintux("informe o nome a editar.", dica="lintux edit <nome> '<novo comando>'")
     db = carregar_db()
     nome = args[0]
-    novo = " ".join(args[1:]).strip()
+    partes = args[1:]
+    dos_argumentos = False
 
     if nome in db["commands"]:
         antigo = db["commands"][nome]["cmd"]
-        if not novo:
+        if partes:
+            novo, dos_argumentos = obter_codigo(nome, partes, atual=antigo)
+        elif sys.stdin.isatty() and encontrar_editor():
             novo = abrir_editor(antigo + "\n", ".sh").strip()
-            if not novo:
-                raise ErroLintux("o comando ficou vazio; nada foi alterado.")
+        else:
+            # Sem editor de texto (ou com pipe/heredoc): edição direto no terminal,
+            # já com o código atual preenchido na linha.
+            novo = ler_comando_interativo(nome, atual=antigo)
+        if not novo:
+            raise ErroLintux("o comando ficou vazio; nada foi alterado.")
         if novo == antigo:
             alerta("Nenhuma alteração foi feita em '{}'.".format(nome))
             return 0
@@ -808,7 +948,7 @@ def cmd_edit(args):
         imprimir_bloco(antigo, 4, OUT.vermelho)
         print("  {}Depois:{}".format(OUT.dim, OUT.reset))
         imprimir_bloco(novo, 4, OUT.verde)
-        avisos_ao_salvar(novo, varios_argumentos=len(args) > 2)
+        avisos_ao_salvar(novo, varios_argumentos=dos_argumentos and len(args) > 2)
         usadas = listas_que_usam(db, nome)
         if usadas:
             print("{}  A alteração vale também para as listas: {}{}".format(OUT.dim, ", ".join(usadas), OUT.reset))
@@ -1366,8 +1506,12 @@ AJUDA = """
 
 # COMANDOS INDIVIDUAIS
   lintux add <nome> '<comando>'               Salva um novo comando
+  lintux add <nome>                           Pede o comando no terminal, sem passar pelo shell
+                                              (o jeito certo para comandos que já têm aspas)
+  lintux add <nome> - < arquivo               Lê o comando da entrada padrão (arquivo ou heredoc)
   lintux edit <nome> '<novo comando>'         Substitui o código de um comando
-  lintux edit <nome>                          Edita o código no editor de texto ($EDITOR)
+  lintux edit <nome>                          Edita o código no editor de texto ($EDITOR);
+                                              sem editor, edita na própria linha do terminal
   lintux rm <nome> [<nome>...] [-y]           Remove comando(s), retirando-o(s) das listas
   lintux list cmd                             Lista os comandos salvos
 
@@ -1420,13 +1564,25 @@ AJUDA = """
   lintux manutencao
   lintux new backup
 
-# IMPORTANTE — USE ASPAS SIMPLES
+# ASPAS E OPERADORES ESPECIAIS
   Ao cadastrar comandos com operadores especiais (&&  ||  |  >  <  ;  $  *  ~), envolva o
   comando em aspas simples '...'. Sem aspas, o seu shell interpreta esses operadores ANTES
   de o Lintux recebê-los. Exemplo do problema:
       lintux add x sudo apt update && sudo apt upgrade
   salva apenas "sudo apt update" e executa "sudo apt upgrade" imediatamente.
-  Se o comando tiver aspas simples internas, use aspas duplas por fora: "echo 'olá'".
+
+# COMANDOS QUE JÁ TÊM ASPAS
+  O bash não aceita aspas simples dentro de aspas simples: em 'grep 'a b' arquivo' ele
+  consome as aspas internas antes de o Lintux receber o comando. Nesses casos, informe
+  só o nome; o Lintux pede o comando e o salva exatamente como foi digitado:
+      lintux add colunas
+      › awk '{{print $1}}' vendas.csv | sort | uniq -c
+  Em scripts, envie o comando pela entrada padrão (heredoc com 'EOF' entre aspas):
+      lintux add colunas - <<'EOF'
+      awk '{{print $1}}' vendas.csv | sort | uniq -c
+      EOF
+  Se o Lintux perceber que as aspas foram consumidas pelo shell, ele avisa e oferece
+  digitar o comando de novo, em vez de salvar um comando quebrado.
 
 # ARQUIVOS
   ~/.lintux/database.json        Banco de dados (cópia anterior em database.json.bak)

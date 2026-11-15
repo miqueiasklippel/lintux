@@ -111,8 +111,10 @@ lintux help                              # full guide
 |---|---|
 | `lintux <name> [args]` | Run a saved command or list |
 | `lintux add <name> '<command>'` | Save a new command |
+| `lintux add <name>` | Ask for the command in the terminal, without going through the shell (best for commands that already contain quotes) |
+| `lintux add <name> - < file` | Read the command from standard input (a file or a heredoc) |
 | `lintux edit <name> '<new command>'` | Replace a command's code |
-| `lintux edit <name>` | Edit the code in your text editor |
+| `lintux edit <name>` | Edit the code in your text editor (without one, edit it right on the terminal line) |
 | `lintux rm <name> [-y]` | Remove a command (asks before removing it from lists) |
 | `lintux list cmd` | Show all saved commands |
 
@@ -178,7 +180,30 @@ lintux add update 'sudo apt update && sudo apt upgrade -y'   # correct
 lintux add update sudo apt update && sudo apt upgrade -y     # wrong
 ```
 
-Without quotes, your shell processes those operators **before** LinTux receives anything: in the second line, only `sudo apt update` is saved and `sudo apt upgrade -y` runs immediately. No program can prevent this, because it happens in your shell. If the command itself contains single quotes, use double quotes around it: `"echo 'hi'"`.
+Without quotes, your shell processes those operators **before** LinTux receives anything: in the second line, only `sudo apt update` is saved and `sudo apt upgrade -y` runs immediately. No program can prevent this, because it happens in your shell.
+
+### Commands that already contain quotes
+
+Bash does not allow single quotes inside single quotes. In `lintux add x 'grep 'foo bar' file.txt'`, the shell removes the inner quotes and LinTux receives two separate pieces, `grep foo` and `bar file.txt`. For these commands, type only the name and let LinTux ask for the command. It is saved exactly as typed, because it never goes through the shell:
+
+```text
+$ lintux add columns
+Digite o comando de 'columns' exatamente como no terminal.
+› awk -F, '{print $1}' sales.csv | sort | uniq -c
+✔ Comando 'columns' salvo.
+```
+
+In scripts, send the command through standard input. Keep `'EOF'` in quotes so the shell does not expand anything:
+
+```bash
+lintux add columns - <<'EOF'
+awk -F, '{print $1}' sales.csv | sort | uniq -c
+EOF
+```
+
+Since version 1.0.1, LinTux also notices when the shell has eaten the inner quotes. Instead of silently saving a broken command, it shows the pieces it received and offers to let you type the command again. Without an interactive terminal, it saves nothing and exits with an error.
+
+Avoid wrapping such commands in double quotes: inside double quotes the shell still expands `$variables` and `` `commands` `` at the moment you save, not when the command runs.
 
 ## Good to know
 

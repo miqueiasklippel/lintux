@@ -215,7 +215,7 @@ footer .right{margin-left:auto}
 <main class="wrap" id="inicio">
   <div class="hero">
     <div>
-      <p class="meta"><span>v1.0.0</span><span>Python 3.6+</span><span>sem dependências</span><span>Debian · Fedora</span></p>
+      <p class="meta"><span>v1.0.1</span><span>Python 3.6+</span><span>sem dependências</span><span>Debian · Fedora</span></p>
       <h1>LinTux<span class="cur" aria-hidden="true"></span></h1>
       <p class="tagline">Seus comandos do terminal, com nome curto.</p>
       <p class="lede">Salve comandos longos uma única vez, encadeie-os em listas de execução e rode tudo com <code>lintux&nbsp;&lt;nome&gt;</code>. O LinTux mostra o que vai executar, pede confirmação antes de operações perigosas e guarda backup dos seus dados.</p>
@@ -359,6 +359,7 @@ lintux history</code>
           <tr><td>lintux -y &lt;nome&gt;</td><td>Dispensa a confirmação de operações perigosas</td></tr>
           <tr class="grp"><td colspan="2">Comandos</td></tr>
           <tr><td>lintux add &lt;nome&gt; '&lt;comando&gt;'</td><td>Salva um novo comando</td></tr>
+          <tr><td>lintux add &lt;nome&gt;</td><td>Pede o comando no terminal, sem passar pelo shell (para comandos que já têm aspas)</td></tr>
           <tr><td>lintux edit &lt;nome&gt; ['&lt;novo&gt;']</td><td>Altera o código (sem texto, abre o editor)</td></tr>
           <tr><td>lintux rm &lt;nome&gt;</td><td>Remove o comando e o retira das listas</td></tr>
           <tr><td>lintux show &lt;nome&gt;</td><td>Mostra o código sem executar</td></tr>
@@ -385,7 +386,10 @@ lintux history</code>
       <p>Operadores como <code>&amp;&amp;</code>, <code>|</code>, <code>&gt;</code> e <code>;</code> são lidos pelo seu shell antes de chegarem ao LinTux. Sem aspas, só a primeira parte é salva e o resto é executado na hora.</p>
 <pre><span class="y">✔ lintux add atualizar 'sudo apt update &amp;&amp; sudo apt upgrade -y'</span>
 <span class="n">✖ lintux add atualizar sudo apt update &amp;&amp; sudo apt upgrade -y</span></pre>
-      <p>Se o comando já tiver aspas simples por dentro, use aspas duplas por fora: <code>"echo 'olá'"</code>. Na demonstração acima você pode testar os dois jeitos.</p>
+      <p>Se o comando já tiver aspas simples por dentro, como <code>grep 'foo bar' notas.txt</code>, o bash não permite colocá-lo dentro de outras aspas simples: ele consome as aspas internas antes de o LinTux receber o comando. Nesse caso, informe só o nome. O LinTux pede o comando e o salva exatamente como foi digitado, sem passar pelo shell:</p>
+<pre><span class="y">$ lintux add busca
+› grep 'foo bar' notas.txt</span></pre>
+      <p>Desde a versão 1.0.1, se as aspas forem consumidas pelo shell, o LinTux avisa e oferece digitar o comando de novo, em vez de salvá-lo quebrado. Na demonstração acima você pode testar os três casos.</p>
     </div>
   </section>
 
@@ -488,6 +492,10 @@ lintux history</code>
   const NAME_RE = /^\w[\w.-]{0,63}$/;
   const PARAM_SRC = "\\{\\{\\s*(\\d+|@)\\s*(?::([^}]*))?\\}\\}";
   let db, history = [], runs = [], hIdx = 0, busy = false, instant = false;
+  /* v1.0.1: quando o LinTux pede o comando, a próxima linha não passa pelo "bash" da demo */
+  let pending = null;
+  const livePs = $(".live .ps");
+  const PS_BASH = "tux@linux:<i>~</i>$";
 
   function freshDb() {
     return {
@@ -509,11 +517,11 @@ lintux history</code>
     scroll();
     if (!instant && !reduce && wait) await sleep(wait);
   }
-  function echoPrompt(cmd) {
+  function echoPrompt(cmd, mark) {
     const d = document.createElement("div");
     d.className = "ln";
     const p = document.createElement("span");
-    p.className = "ps"; p.innerHTML = "tux@linux:<i>~</i>$";
+    p.className = "ps"; p.innerHTML = mark ? "<i>" + mark + "</i>" : PS_BASH;
     d.append(p, document.createTextNode(" " + cmd));
     out.appendChild(d);
     scroll();
@@ -625,7 +633,33 @@ lintux history</code>
     for (const r of risks(code)) await say(`⚠ Atenção: este comando envolve ${r}. O Lintux pedirá confirmação antes de executá-lo.`, "warn");
     const p = params(code);
     if (p.length) await say("  Parâmetros: " + p.join("; "), "dim");
-    if (unquoted) await say("  Dica: na próxima vez, envolva o comando em aspas simples '...' para preservar espaços, aspas internas e operadores como && | > ;", "dim");
+    if (unquoted) await say("  Dica: na próxima vez, envolva o comando em aspas simples '...' para preservar espaços e operadores como && | > ; e, se ele já tiver aspas internas, informe só o nome (lintux add <nome>) e digite o comando quando o Lintux pedir.", "dim");
+  }
+  /* ---------- entrada do comando sem passar pelo shell (v1.0.1) ---------- */
+  async function askCommand(name, done) {
+    await say(`Digite o comando de '${name}' exatamente como no terminal.`, "cy b");
+    await say("  Aspas, $variáveis e operadores (| && > ;) são salvos como estão, sem aspas extras por fora.", "dim");
+    await say("  Termine a linha com \\ para continuar na próxima. Enter vazio cancela.", "dim");
+    pending = { name, done, lines: [] };
+    livePs.innerHTML = "<i>›</i>";
+  }
+  async function receivePending(raw) {
+    const p = pending;
+    echoPrompt(raw, p.lines.length ? "…" : "›");
+    p.lines.push(raw);
+    if (raw.trimEnd().endsWith("\\")) { livePs.innerHTML = "<i>…</i>"; return; }
+    pending = null;
+    livePs.innerHTML = PS_BASH;
+    const code = p.lines.join("\n").trim();
+    if (!code) return err("nenhum comando foi digitado; nada foi salvo.");
+    return p.done(code);
+  }
+  async function brokenQuotes(parts) {
+    await say("⚠ As aspas internas do comando foram consumidas pelo shell antes de chegar ao Lintux.", "warn");
+    await say(`  O Lintux recebeu ${parts.length} pedaços separados: ${parts.map(x => "[" + x + "]").join("  ")}`);
+    await say("  Unidos, eles formariam: " + parts.join(" ").trim());
+    await pause(250);
+    await say("? Digitar o comando agora, sem passar pelo shell? (n salva como foi recebido) [S/n] s", "warn");
   }
 
   /* ---------- saídas simuladas dos programas ---------- */
@@ -668,12 +702,14 @@ lintux history</code>
     else if ((m = s.match(/^exit\s+(\d+)/))) { code = +m[1]; t = 0; }
     else if (/^false\b/.test(s)) { code = 1; t = 0; }
     else if (/^true\b/.test(s)) t = 0;
+    else if (/^awk\b.*vendas\.csv/.test(s)) lines = ["      3 ana", "      2 beto", "      1 carla"];
+    else if (/^grep\b.*foo bar.*notas\.txt/.test(s)) lines = ["lembrete: revisar o foo bar antes da reunião de segunda"];
     else lines = [`(demonstração) “${seg.trim()}” seria executado aqui, no seu terminal real.`];
     return { lines, t, code, sudo };
   }
   async function sim(code) {
     if (risks(code).length) { await say("(demonstração) Nada foi executado de verdade, e ainda bem.", "dim"); return { code: 0, t: 0 }; }
-    const { segs } = splitTop(code, false);
+    const { segs } = splitTop(code.replace(/\\\n/g, " "), false);
     let total = 0, last = 0, askedSudo = false;
     for (let i = 0; i < segs.length; i++) {
       const prevOp = i ? segs[i - 1].op : null;
@@ -701,7 +737,7 @@ lintux history</code>
     const tux = ["       .--.", "      |o_o |", "      |:_/ |", "     //   \\ \\", "    (|     | )", "   /'\\_   _/`\\", "   \\___)=(___/"];
     for (const l of tux) await say(l, "cy", 12);
     await say("");
-    await say(`  Lintux 1.0.0 — ${Object.keys(db.commands).length} comando(s) e ${Object.keys(db.lists).length} lista(s) salvos`, "b");
+    await say(`  Lintux 1.0.1 — ${Object.keys(db.commands).length} comando(s) e ${Object.keys(db.lists).length} lista(s) salvos`, "b");
     await say("");
     await say("  lintux add <nome> '<comando>'    Salvar um comando");
     await say("  lintux <nome>                    Executar");
@@ -714,30 +750,39 @@ lintux history</code>
   async function help() {
     const H = [
       ["USO", ["lintux <nome> [argumentos...]               Executa um comando ou uma lista salvos", "lintux [opções] <nome> [argumentos...]      Executa com opções"]],
-      ["COMANDOS INDIVIDUAIS", ["lintux add <nome> '<comando>'               Salva um novo comando", "lintux edit <nome> '<novo comando>'         Substitui o código de um comando", "lintux rm <nome> [-y]                       Remove o comando, retirando-o das listas", "lintux list cmd                             Lista os comandos salvos"]],
+      ["COMANDOS INDIVIDUAIS", ["lintux add <nome> '<comando>'               Salva um novo comando", "lintux add <nome>                           Pede o comando, sem passar pelo shell (com aspas)", "lintux add <nome> - < arquivo               Lê o comando da entrada padrão","lintux edit <nome> '<novo comando>'         Substitui o código de um comando", "lintux rm <nome> [-y]                       Remove o comando, retirando-o das listas", "lintux list cmd                             Lista os comandos salvos"]],
       ["LISTAS DE EXECUÇÃO", ["lintux add list <lista>                     Cria uma lista vazia", "lintux add list <lista> <comando>           Adiciona um comando já salvo", "lintux add list <lista> <novo> '<comando>'  Salva e já adiciona à lista", "lintux mv <lista> <de> <para>               Move uma etapa de posição", "lintux rm list <lista> [etapa]              Remove a lista ou uma etapa", "lintux list lists                           Mostra as listas e as etapas"]],
       ["INSPEÇÃO E ORGANIZAÇÃO", ["lintux show <nome>                          Mostra o código sem executar", "lintux search <termo>                       Procura em nomes, códigos e descrições", "lintux rename <atual> <novo>                Renomeia, atualizando as listas", "lintux desc <nome> '<descrição>'            Define uma descrição", "lintux history                              Histórico de execuções"]],
       ["BACKUP", ["lintux new backup [pasta]                   Cria backup (padrão: Downloads)", "lintux add backup <arquivo> [--overwrite]   Restaura e mescla um backup"]],
       ["OPÇÕES DE EXECUÇÃO (antes do nome)", ["-y  sem confirmação   -k  continua após falhas   -n  simulação   -q  silencioso"]],
       ["PARÂMETROS", ["{{1}} obrigatório   {{1:padrão}} com valor padrão   {{@}} todos os argumentos"]]
     ];
-    await say("Lintux 1.0.0 — gerenciador de comandos e listas de execução no terminal", "cy b");
+    await say("Lintux 1.0.1 — gerenciador de comandos e listas de execução no terminal", "cy b");
     for (const [h, ls] of H) { await say(""); await say(h, "cy b", 10); for (const l of ls) await say("  " + l, "", 10); }
     await say("");
     await say("  Use aspas simples ao salvar comandos com && | > ; $", "warn");
+    await say("  Comando que já tem aspas? Use lintux add <nome> e digite-o quando o Lintux pedir.", "warn");
   }
   async function cmdAdd(a) {
     if (!a.length) return err("uso incorreto de 'add'.", "lintux add <nome> '<comando>'   |   lintux add list <lista> [...]   |   lintux add backup <arquivo>");
     if (a[0] === "list") return addList(a.slice(1));
     if (a[0] === "backup") return say("⚠ A restauração de backup não está disponível nesta demonstração. No seu terminal: lintux add backup <arquivo.json>", "warn");
-    const [n, ...rest] = a, code = rest.join(" ").trim();
+    const [n, ...rest] = a;
     const v = validate(n); if (v) return err(...v);
-    if (!code) return err("informe o comando real a ser salvo.", `lintux add ${n} 'comando && outro comando'`);
-    db.commands[n] = { cmd: code, desc: "", t: now().full };
-    await say(`✔ Comando '${n}' salvo.`, "ok");
-    await say("  " + code, "cy");
-    await afterSave(code, rest.length > 1);
-    await say(`  Execute com: lintux ${n}`, "dim");
+    const save = async (code, unquoted) => {
+      const again = validate(n); if (again) return err(...again);
+      db.commands[n] = { cmd: code, desc: "", t: now().full };
+      await say(`✔ Comando '${n}' salvo.`, "ok");
+      for (const l of code.split("\n")) await say("  " + l, "cy");
+      await afterSave(code, unquoted);
+      await say(`  Execute com: lintux ${n}`, "dim");
+    };
+    if (!rest.length) return askCommand(n, code => save(code, false));
+    if (rest.length > 1 && rest.some(x => /\s/.test(x))) {
+      await brokenQuotes(rest);
+      return askCommand(n, code => save(code, false));
+    }
+    return save(rest.join(" ").trim(), rest.length > 1);
   }
   async function addList(a) {
     if (!a.length) return err("informe o nome da lista.", "lintux add list <lista>");
@@ -751,12 +796,23 @@ lintux history</code>
       return say(`  Dica: adicione etapas com: lintux add list ${l} <comando>`, "dim");
     }
     let newCmd = false;
+    if (rest.length > 1 && rest.some(x => /\s/.test(x)) && !db.commands[c]) {
+      const v = validate(c); if (v) return err(...v);
+      await brokenQuotes(rest);
+      return askCommand(c, typed => addList([l, c, typed]));
+    }
     if (code) {
       if (db.commands[c]) { if (db.commands[c].cmd !== code) return err(`já existe um comando '${c}' com outro conteúdo.`, `Altere-o com 'lintux edit ${c}' ou escolha outro nome.`); }
       else { const v = validate(c); if (v) return err(...v); newCmd = true; }
     } else if (!db.commands[c]) {
       if (db.lists[c]) return err(`'${c}' é uma lista; listas não podem conter outras listas.`);
       const s = suggest(c);
+      if (!s.length && !validate(c)) {
+        await say(`⚠ O comando '${c}' ainda não existe.`, "warn");
+        await pause(250);
+        await say(`? Criar '${c}' agora e adicioná-lo à lista '${l}'? [S/n] s`, "warn");
+        return askCommand(c, code => addList([l, c, code]));
+      }
       return err(`o comando '${c}' não existe.`, (s.length ? `Você quis dizer: ${s.join(", ")}? ` : "") + `Para criar e vincular de uma vez: lintux add list ${l} ${c} '<comando>'`);
     }
     if (created) db.lists[l] = { steps: [], desc: "", t: now().full };
@@ -944,7 +1000,7 @@ lintux history</code>
     if (o.n) { await say(""); await say(`Simulação — '${name}' NÃO será executado:`, "cy b"); return say("  " + r.code, "cy"); }
     const rk = risks(r.code);
     if (rk.length && !o.y) return riskBlock([[name, rk]]);
-    if (!o.q) { await say("▶ " + name, "cy b"); await say("  " + r.code, "dim"); }
+    if (!o.q) { await say("▶ " + name, "cy b"); await say(r.code.split("\n").map(l => "  " + l).join("\n"), "dim"); }
     const res = await sim(r.code);
     record(name, "comando", res.code, res.t);
     if (res.code === 0) { if (!o.q) await say(`✔ '${name}' concluído (${fmt(res.t)}).`, "ok"); }
@@ -1014,7 +1070,7 @@ lintux history</code>
     if (!a.length) return banner();
     const [f, ...r] = a;
     if (f === "help" || f === "-h" || f === "--help") return help();
-    if (f === "version" || f === "--version" || f === "-V") return say("Lintux 1.0.0 (Python 3.12.3, shell: /usr/bin/bash)");
+    if (f === "version" || f === "--version" || f === "-V") return say("Lintux 1.0.1 (Python 3.12.3, shell: /usr/bin/bash)");
     const table = { add: cmdAdd, list: cmdList, show: cmdShow, rm: cmdRm, edit: cmdEdit, rename: cmdRename, desc: cmdDesc, mv: cmdMv, search: cmdSearch, history: cmdHistory, new: cmdNew, run: runItem };
     if (table[f]) return table[f](r);
     return runItem(a);
@@ -1025,7 +1081,11 @@ lintux history</code>
     const line = raw.trim();
     if (!line) return;
     const { segs, open } = splitTop(line, true);
-    if (open) return say(`bash: aspas ${open === "'" ? "simples" : "duplas"} não fechadas. No terminal real, o bash esperaria você fechá-las.`, "err");
+    if (open) {
+      await say(`bash: aspas ${open === "'" ? "simples" : "duplas"} não fechadas. No terminal real, o bash esperaria você fechá-las.`, "err");
+      if (/^\s*lintux\s+(add|edit)\b/.test(line)) await say("  Dica: o comando já tem aspas? Informe só o nome (lintux add <nome>) e digite o comando quando o Lintux pedir.", "dim");
+      return;
+    }
     for (let i = 0; i < segs.length; i++) {
       const w = words(segs[i].s);
       if (!w.length) continue;
@@ -1052,9 +1112,11 @@ lintux history</code>
   async function submit(raw) {
     if (busy) return;
     busy = true; input.disabled = true; setChips(true);
-    echoPrompt(raw);
     if (raw.trim()) { history.push(raw); hIdx = history.length; }
-    try { await shell(raw); }
+    try {
+      if (pending) await receivePending(raw);
+      else { echoPrompt(raw); await shell(raw); }
+    }
     catch (e) { await say("✖ Erro interno da demonstração: " + e.message, "err"); }
     busy = false; input.disabled = false; setChips(false);
     scroll();
@@ -1106,6 +1168,9 @@ lintux history</code>
     "lintux -n manutencao",
     "lintux manutencao",
     "lintux add teste sudo apt update && sudo apt upgrade -y",
+    { label: "lintux add colunas  (o LinTux pede o comando)", seq: ["lintux add colunas", "awk -F, '{print $1}' vendas.csv | sort | uniq -c | sort -rn"] },
+    { label: "lintux add busca 'grep 'foo bar' notas.txt'", seq: ["lintux add busca 'grep 'foo bar' notas.txt'", "grep 'foo bar' notas.txt"] },
+    "lintux busca",
     "lintux add limpeza 'rm -rf ~'",
     "lintux limpeza",
     "lintux history",
@@ -1113,29 +1178,34 @@ lintux history</code>
     "lintux help"
   ];
   const chips = $("#chips");
-  EXAMPLES.forEach(cmd => {
+  EXAMPLES.forEach(ex => {
     const b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.textContent = cmd;
-    b.addEventListener("click", () => typeAndRun(cmd));
+    b.type = "button"; b.className = "chip";
+    b.textContent = typeof ex === "string" ? ex : ex.label;
+    b.addEventListener("click", () => typeAndRun(typeof ex === "string" ? [ex] : ex.seq));
     chips.appendChild(b);
   });
   function setChips(off) { chips.querySelectorAll(".chip").forEach(c => c.disabled = off); }
-  async function typeAndRun(cmd) {
+  async function typeAndRun(seq) {
     if (busy) return;
     input.dataset.keep = "0";
-    if (reduce) { submit(cmd); return; }
-    busy = true; setChips(true);
-    input.value = "";
-    for (const ch of cmd) { input.value += ch; await sleep(14); }
-    await sleep(120);
-    input.value = "";
-    busy = false;
-    submit(cmd);
+    if (pending) { pending = null; livePs.innerHTML = PS_BASH; }
+    for (const cmd of seq) {
+      if (!reduce) {
+        busy = true; setChips(true);
+        input.value = "";
+        for (const ch of cmd) { input.value += ch; await sleep(14); }
+        await sleep(120);
+        input.value = "";
+        busy = false;
+      }
+      await submit(cmd);
+    }
   }
 
   /* ---------- início ---------- */
   async function boot() {
-    db = freshDb(); history = []; runs = []; hIdx = 0;
+    db = freshDb(); history = []; runs = []; hIdx = 0; pending = null; livePs.innerHTML = PS_BASH;
     out.textContent = "";
     instant = true;
     echoPrompt("lintux");

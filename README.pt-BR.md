@@ -109,8 +109,10 @@ lintux help                              # guia completo
 |---|---|
 | `lintux <nome> [args]` | Executa um comando ou uma lista salvos |
 | `lintux add <nome> '<comando>'` | Salva um novo comando |
+| `lintux add <nome>` | Pede o comando no terminal, sem passar pelo shell (o ideal para comandos que já têm aspas) |
+| `lintux add <nome> - < arquivo` | Lê o comando da entrada padrão (um arquivo ou um heredoc) |
 | `lintux edit <nome> '<novo comando>'` | Substitui o código de um comando |
-| `lintux edit <nome>` | Edita o código no seu editor de texto |
+| `lintux edit <nome>` | Edita o código no seu editor de texto (sem editor, edita na própria linha do terminal) |
 | `lintux rm <nome> [-y]` | Remove um comando (pergunta antes de retirá-lo das listas) |
 | `lintux list cmd` | Mostra todos os comandos salvos |
 
@@ -176,7 +178,30 @@ lintux add atualizar 'sudo apt update && sudo apt upgrade -y'   # correto
 lintux add atualizar sudo apt update && sudo apt upgrade -y     # errado
 ```
 
-Sem aspas, o seu shell processa esses operadores **antes** de o LinTux receber qualquer coisa: na segunda linha, apenas `sudo apt update` é salvo, e `sudo apt upgrade -y` é executado imediatamente. Nenhum programa consegue impedir isso, porque acontece no seu shell. Se o comando tiver aspas simples internas, use aspas duplas por fora: `"echo 'olá'"`.
+Sem aspas, o seu shell processa esses operadores **antes** de o LinTux receber qualquer coisa: na segunda linha, apenas `sudo apt update` é salvo, e `sudo apt upgrade -y` é executado imediatamente. Nenhum programa consegue impedir isso, porque acontece no seu shell.
+
+### Comandos que já têm aspas
+
+O bash não permite aspas simples dentro de aspas simples. Em `lintux add x 'grep 'foo bar' arquivo.txt'`, o shell remove as aspas internas e o LinTux recebe dois pedaços separados, `grep foo` e `bar arquivo.txt`. Para esses comandos, digite só o nome e deixe o LinTux pedir o comando. Ele é salvo exatamente como foi digitado, porque não passa pelo shell:
+
+```text
+$ lintux add colunas
+Digite o comando de 'colunas' exatamente como no terminal.
+› awk -F, '{print $1}' vendas.csv | sort | uniq -c
+✔ Comando 'colunas' salvo.
+```
+
+Em scripts, envie o comando pela entrada padrão. Mantenha `'EOF'` entre aspas para que o shell não expanda nada:
+
+```bash
+lintux add colunas - <<'EOF'
+awk -F, '{print $1}' vendas.csv | sort | uniq -c
+EOF
+```
+
+Desde a versão 1.0.1, o LinTux também percebe quando o shell consumiu as aspas internas. Em vez de salvar um comando quebrado sem avisar, ele mostra os pedaços que recebeu e oferece digitar o comando de novo. Sem um terminal interativo, ele não salva nada e termina com erro.
+
+Evite envolver esses comandos em aspas duplas: dentro delas o shell ainda expande `$variáveis` e `` `comandos` `` no momento em que você salva, e não quando o comando é executado.
 
 ## Bom saber
 
